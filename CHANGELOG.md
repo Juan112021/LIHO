@@ -5,6 +5,28 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.5] - 2026-09-21
+
+### 🎨 Diseño y Experiencia de Usuario (UI/UX)
+- **Homologación Visual de Detalle de Liquidación por Sedes (`examenes_medicos.php`)**:
+  - **Identidad Visual Corporativa Unificada**: Se homologó el diseño del modal de pre-liquidación en `examenes_medicos.php` para igualar con total precisión la interfaz moderna y refinada de `aprobacion_liquidaciones.php`.
+  - **Barra de Encabezado Superior Sólida**: Se implementó la barra superior institucional en azul marino oscuro (`bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest text-center uppercase py-2.5 px-4 font-outfit`) con el título `DETALLE DE LIQUIDACIÓN: ESTUDIOS REALIZADOS`.
+  - **Tarjetas de Sede Homologadas**:
+    - Encabezado con icono de edificio corporativo (`fa-building text-tertiary`), nombre en mayúsculas y botón interactivo `Ver informe ->`.
+    - Insignia compacta integrada en la cabecera cuando existen registros no cruzados (`⚠️ X NO CRUZADO(S) ($...)`), eliminando franjas amarillas voluminosas dentro del cuerpo de la tarjeta.
+    - Columnas estándar de tabla: `CENTRO DE COSTO`, `CANT`, `VALOR`.
+    - Fila inferior formal de `TOTAL` con la sumatoria de cantidades y montos monetarios en tipografía monoespaciada de alto contraste.
+  - **Reubicación de Alerta Lateral**: El banner de advertencia global de registros no cruzados (`ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS`) se reubicó en la columna lateral derecha, ubicándose armónicamente sobre `ESTUDIOS POR ESTRUCTURA ADMINISTRATIVA`.
+  - **Encabezado de Tabla de Producción por Médico**: Barra superior sólida azul marino con badge estilizado `Liquidación Global (X Especialistas)` con estructura HTML balanceada.
+
+### 📂 Archivos Modificados
+- `config/version.php`
+- `examenes_medicos.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.1.4] - 2026-09-21
 
 ### 🎨 Diseño y Experiencia de Usuario (UI/UX)

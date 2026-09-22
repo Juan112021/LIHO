@@ -3287,24 +3287,6 @@ usort($listaMedicos, function($a, $b) {
                     </div>
                 </div>
 
-                <!-- Contextual Alert Banner: Registros No Cruzados -->
-                <!-- Banner Advertencia de Registros No Cruzados (Tono Mate Opaco en Modo Claro, Confort Visual) -->
-                <div id="liqBannerAdvertenciaNoCruzados" class="hidden bg-[#fbf9f4] dark:bg-[#20170a] border border-[#dfd5c0] dark:border-amber-500/60 rounded-2xl p-4 text-[#4e3b1f] dark:text-amber-100 shadow-xs" data-purpose="audit-warning-banner">
-                    <div class="flex items-start sm:items-center gap-3.5">
-                        <div class="p-2 bg-[#ece2cb] text-[#6e501a] dark:bg-amber-500/20 dark:text-amber-300 rounded-xl shrink-0 border border-[#d8c8a8] dark:border-amber-500/40">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round"></path>
-                            </svg>
-                        </div>
-                        <div class="text-xs sm:text-sm">
-                            <span class="font-black text-[#423219] dark:text-amber-200">Atención: Incluye registros pendientes de conciliación.</span>
-                            <span class="text-[#5e451b] dark:text-amber-200/90 ml-1">
-                                La liquidación cuenta con <strong class="font-extrabold text-[#3a2c16] dark:text-white underline decoration-[#b88c38] underline-offset-2"><span id="liqCountNoCruzadosDisplay">0</span> registro(s) no cruzado(s)</strong> por un subtotal de <strong class="font-mono font-black text-[#3a2c16] dark:text-amber-300">$ <span id="liqValNoCruzadosDisplay">0</span> COP</strong>. Requiere revisión previa a cierre.
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Banner Informativo Bonificación Tomografías (150.000 x cada 50) -->
                 <div id="liqBannerBonificacionTomo" class="hidden bg-gradient-to-r from-[#fbf8f1] via-[#f7f3e8] to-[#fbf8f1] dark:from-[#2a1d0d] dark:via-[#20170a] dark:to-[#16120b] border border-[#dfd5c0] dark:border-amber-500/80 rounded-2xl p-4 text-[#4e3b1f] dark:text-amber-100 shadow-xs">
                     <div class="flex items-start sm:items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
@@ -3354,17 +3336,9 @@ usort($listaMedicos, function($a, $b) {
                     <!-- BEGIN: LeftPrimaryColumn -->
                     <section class="xl:col-span-8 space-y-5">
                         <!-- Studies by Location Breakdown -->
-                        <div class="bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-[#1e2c47] rounded-2xl overflow-hidden shadow-xs" data-purpose="location-breakdown-section">
-                            <div class="px-4 py-3 bg-slate-50 dark:bg-[#131d33]/70 border-b border-slate-200 dark:border-[#1e2c47] flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/20">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" stroke-linecap="round" stroke-linejoin="round"></path>
-                                        </svg>
-                                    </div>
-                                    <h2 class="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-200 font-outfit">Detalle de Liquidación: Estudios Realizados por Sede</h2>
-                                </div>
-                                <span class="text-[11px] text-slate-600 dark:text-slate-400 font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-[#18233c] border border-slate-200 dark:border-[#243557]">Sedes Identificadas</span>
+                        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col avoid-page-break" data-purpose="location-breakdown-section">
+                            <div class="bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest text-center uppercase py-2.5 px-4 font-outfit">
+                                DETALLE DE LIQUIDACIÓN: ESTUDIOS REALIZADOS
                             </div>
                             <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4" id="liqContainerSedes">
                                 <!-- Dinámico -->
@@ -3372,18 +3346,14 @@ usort($listaMedicos, function($a, $b) {
                         </div>
 
                         <!-- Production per Specialist Doctor Table (Sólo visible en Liquidación Global) -->
-                        <div id="liqContainerResumenMedicos" class="hidden bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-[#1e2c47] rounded-2xl overflow-hidden shadow-xs avoid-page-break" data-purpose="doctors-production-table">
-                            <div class="px-4 py-3 bg-slate-50 dark:bg-[#131d33]/70 border-b border-slate-200 dark:border-[#1e2c47] flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-md bg-cyan-100 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-400 flex items-center justify-center border border-cyan-200 dark:border-cyan-500/20">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"></path>
-                                        </svg>
-                                    </div>
-                                    <h2 class="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-200 font-outfit">Producción Generada por Médico</h2>
-                                </div>
-                                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#18233c] border border-slate-200 dark:border-[#243557] text-slate-700 dark:text-slate-300 font-medium">
-                                    <span id="liqTotalMedicosCount">0</span> Especialistas
+                        <div id="liqContainerResumenMedicos" class="hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col avoid-page-break" data-purpose="doctors-production-table">
+                            <div class="bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest uppercase py-2.5 px-4 font-outfit flex items-center justify-between">
+                                <span class="flex items-center gap-2">
+                                    <i class="fa-solid fa-user-doctor text-tertiary"></i>
+                                    <span>PRODUCCIÓN GENERADA POR CADA MÉDICO</span>
+                                </span>
+                                <span class="text-[10px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-2 py-0.5 rounded-full font-sans font-bold">
+                                    Liquidación Global (<span id="liqTotalMedicosCount">0</span> Especialistas)
                                 </span>
                             </div>
                             <div class="overflow-x-auto max-h-80 overflow-y-auto print:max-h-none">
@@ -3418,33 +3388,40 @@ usort($listaMedicos, function($a, $b) {
                     <!-- END: LeftPrimaryColumn -->
 
                     <!-- BEGIN: RightSidebarSummary -->
-                    <section class="xl:col-span-4 space-y-4">
+                    <section class="xl:col-span-4 space-y-4 flex flex-col">
+                        <!-- Banner Informativo / Advertencia Registros No Cruzados -->
+                        <div id="liqBannerAdvertenciaNoCruzados" class="hidden p-3.5 rounded-2xl bg-[#fbf9f4] dark:bg-amber-950/50 border border-[#dfd5c0] dark:border-amber-700/80 text-[#4e3b1f] dark:text-amber-200 text-xs shadow-xs" data-purpose="audit-warning-banner">
+                            <div class="flex items-start gap-2.5">
+                                <span class="material-symbols-outlined text-[#8a6021] dark:text-amber-400 text-xl shrink-0 mt-0.5">warning</span>
+                                <div class="space-y-0.5">
+                                    <p class="font-extrabold text-[#423219] dark:text-amber-300 uppercase tracking-wider text-[11px]">ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS</p>
+                                    <p class="text-[11px] leading-snug opacity-95">
+                                        La liquidación total incluye <strong><span id="liqCountNoCruzadosDisplay">0</span> registro(s) no cruzado(s)</strong> por valor de <strong>$ <span id="liqValNoCruzadosDisplay">0</span></strong>. Los ítems no cruzados han sido incluidos pero están señalizados con la insignia <span class="px-1 py-0.5 rounded bg-[#ece2cb] dark:bg-amber-900/80 text-[#4a3713] dark:text-amber-200 text-[10px] font-black border border-[#d8c8a8] dark:border-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> No Cruzado</span> en cada sede.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Card 1: Administrative Structure Summary -->
-                        <div class="bg-white dark:bg-[#0f172a]/80 border border-slate-200 dark:border-[#1e2c47] rounded-xl p-4 shadow-xs" data-purpose="admin-structure-summary">
-                            <div class="flex items-center justify-between mb-3 border-b border-slate-200 dark:border-[#1b273d] pb-2.5">
-                                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5 font-outfit">
-                                    <svg class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                        <path d="M4 6h16M4 10h16M4 14h16M4 18h16" stroke-linecap="round" stroke-linejoin="round"></path>
-                                    </svg>
-                                    Estudios por Estructura
-                                </h3>
-                                <span class="text-[10px] text-slate-500 dark:text-slate-400 font-mono uppercase tracking-wider">Administrativa</span>
+                        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden avoid-page-break" data-purpose="admin-structure-summary">
+                            <div class="bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest text-center uppercase py-2.5 px-4 font-outfit">
+                                ESTUDIOS POR ESTRUCTURA ADMINISTRATIVA
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left border-collapse text-xs">
                                     <thead>
-                                        <tr class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-[#172236]">
-                                            <th class="py-1 px-1">SEDE</th>
-                                            <th class="py-1 px-1 text-right">VALOR TOTAL</th>
+                                        <tr class="bg-slate-100 dark:bg-slate-800/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                                            <th class="py-2 px-3">SEDE</th>
+                                            <th class="py-2 px-3 text-right">VALOR TOTAL</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="liqTbodyResumenSedes" class="divide-y divide-slate-100 dark:divide-[#172236] text-slate-700 dark:text-slate-200">
+                                    <tbody id="liqTbodyResumenSedes" class="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-200">
                                         <!-- Dinámico -->
                                     </tbody>
                                     <tfoot>
-                                        <tr class="border-t border-slate-200 dark:border-[#172236] font-semibold text-slate-700 dark:text-slate-200">
-                                            <td class="pt-2 text-slate-500 dark:text-slate-400 text-xs">Total Facturado Bruto</td>
-                                            <td class="pt-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold text-sm" id="liqTotalFacturaSum">$ 0</td>
+                                        <tr class="border-t-2 border-slate-300 dark:border-slate-700 font-bold bg-slate-100/80 dark:bg-slate-800/80 text-slate-900 dark:text-white">
+                                            <td class="py-2.5 px-3 text-right uppercase text-[11px] font-black">TOTAL FACTURA</td>
+                                            <td class="py-2.5 px-3 text-right font-black text-sm text-primary dark:text-tertiary" id="liqTotalFacturaSum">$ 0</td>
                                         </tr>
                                     </tfoot>
                                 </table>
@@ -6239,16 +6216,14 @@ usort($listaMedicos, function($a, $b) {
                     const sObj = sedesMap[sKey];
                     totalFacturaBaseLiquidador += sObj.totalValor;
 
-                    let warningStrip = '';
+                    // Warning Badge Header
+                    let warningBadgeHeader = '';
                     if (sObj.noCruzadoCount > 0) {
-                        warningStrip = `
-                            <div class="mb-2 px-2.5 py-1.5 rounded-lg bg-[#f8f5ee] dark:bg-amber-950/50 border border-[#e4d9c4] dark:border-amber-600/40 text-[11px] font-semibold text-[#5c4217] dark:text-amber-200 flex items-center justify-between gap-2 shadow-2xs">
-                                <span class="flex items-center gap-1.5 truncate">
-                                    <span class="material-symbols-outlined text-sm text-[#8a6021] dark:text-amber-400 shrink-0">warning</span>
-                                    <span>${sObj.noCruzadoCount} registro(s) no cruzado(s)</span>
-                                </span>
-                                <span class="font-mono font-bold text-[#7d5013] dark:text-amber-300 shrink-0">$${sObj.noCruzadoValor.toLocaleString('es-CO')}</span>
-                            </div>
+                        warningBadgeHeader = `
+                            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#f9f5ec] text-[#664b22] dark:bg-amber-950 dark:text-amber-300 border border-[#e5d9c2] dark:border-amber-700 flex items-center gap-1 shrink-0" title="${sObj.noCruzadoCount} registro(s) no cruzado(s) incluidos en esta sede">
+                                <span class="material-symbols-outlined text-xs text-[#8a6021] dark:text-amber-400">warning</span>
+                                ${sObj.noCruzadoCount} NO CRUZADO(S) ($${sObj.noCruzadoValor.toLocaleString('es-CO')})
+                            </span>
                         `;
                     }
 
@@ -6256,17 +6231,16 @@ usort($listaMedicos, function($a, $b) {
                     Object.values(sObj.conceptos).forEach(cObj => {
                         if (cObj.esBonificacion) {
                             conceptosRowsHtml += `
-                                <tr class="border-b border-[#e9dfcc] dark:border-amber-900/60 bg-[#faf6ee] dark:bg-amber-950/30">
+                                <tr class="border-b border-[#e9dfcc] dark:border-amber-900/60 bg-[#faf6ee] dark:bg-amber-950/40 hover:bg-[#f3ede1] dark:hover:bg-amber-900/50 transition-colors">
                                     <td class="py-2 px-2 text-[11px] font-bold text-[#4a3713] dark:text-amber-200">
-                                        <div class="flex items-center gap-1.5 flex-wrap">
-                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#ece2cb] text-[#4a3713] dark:bg-amber-900/90 dark:text-amber-100 border border-[#d8c8a8] dark:border-amber-700 shadow-xs">
-                                                <span class="material-symbols-outlined text-xs">military_tech</span> BONIFICACIÓN
-                                            </span>
-                                            <span class="truncate max-w-[280px]" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                        <div class="flex items-center flex-wrap gap-1.5">
+                                            <span class="material-symbols-outlined text-[#8a6021] dark:text-amber-400 text-sm">military_tech</span>
+                                            <span class="font-black tracking-tight text-[#3a2c16] dark:text-amber-100" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                            <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-[#ece2cb] dark:bg-amber-900 text-[#4a3713] dark:text-amber-100 border border-[#d8c8a8] dark:border-amber-700">INCENTIVO (50 CT)</span>
                                         </div>
                                     </td>
-                                    <td class="py-2 px-2 text-right font-mono font-bold text-[#5c4217] dark:text-amber-300 text-[11px]">${cObj.cant} bono(s)</td>
-                                    <td class="py-2 px-2 text-right font-mono font-black text-[#8c5717] dark:text-amber-300 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
+                                    <td class="py-2 px-2 text-right font-mono font-black text-[#5c4217] dark:text-amber-200 text-[11px]">${cObj.cant.toLocaleString('es-CO')} bono(s)</td>
+                                    <td class="py-2 px-2 text-right font-mono font-black text-[#8c5717] dark:text-amber-400 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
                                 </tr>
                             `;
                             return;
@@ -6292,7 +6266,7 @@ usort($listaMedicos, function($a, $b) {
                             <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                 <td class="py-1.5 px-2 text-[11px] font-medium text-slate-700 dark:text-slate-300">
                                     <div class="flex items-center flex-wrap gap-1">
-                                        <span class="truncate max-w-[260px]" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                        <span class="truncate max-w-[200px]" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
                                         ${advertenciaConcepto}
                                     </div>
                                 </td>
@@ -6303,38 +6277,38 @@ usort($listaMedicos, function($a, $b) {
                     });
 
                     const cardSedeHtml = `
-                        <div class="bg-white dark:bg-[#11192b]/90 border ${sObj.noCruzadoCount > 0 ? 'border-[#ddd3be] dark:border-amber-500/40 hover:border-[#cbbe9f] dark:hover:border-amber-500/60' : 'border-slate-200 dark:border-[#1e2c47] hover:border-slate-300 dark:hover:border-slate-600'} rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-xs hover:shadow-md relative overflow-hidden">
-                            ${sObj.noCruzadoCount > 0 ? '<div class="absolute top-0 right-0 w-16 h-16 bg-[#b88c38]/10 rounded-bl-full pointer-events-none"></div>' : ''}
-                            <div>
-                                <div class="flex items-center justify-between mb-2 cursor-pointer group" onclick="mostrarInformeExamenesSedePreview('${htmlspecialchars(sObj.nombre)}')">
-                                    <span class="font-bold text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 flex items-center gap-1.5 group-hover:text-teal-600 dark:group-hover:text-teal-300 transition-colors font-outfit truncate pr-2">
-                                        <span class="w-2.5 h-2.5 rounded-full shrink-0 ${sObj.noCruzadoCount > 0 ? 'bg-[#a6792c] dark:bg-amber-400' : 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]'}"></span>
-                                        <span class="truncate">${htmlspecialchars(sObj.nombre)}</span>
-                                    </span>
-                                    <span class="text-[10px] text-teal-600 dark:text-teal-400 group-hover:underline font-extrabold flex items-center gap-1 shrink-0 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-200/60 dark:border-teal-800/60">
+                        <div class="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 shadow-xs">
+                            <div class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 cursor-pointer transition-colors py-1.5 px-3 border-b border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 font-outfit uppercase flex items-center justify-between gap-2 group" onclick="mostrarInformeExamenesSedePreview('${htmlspecialchars(sObj.nombre)}')">
+                                <span class="truncate flex items-center gap-1.5">
+                                    <i class="fa-solid fa-building text-tertiary"></i>
+                                    ${htmlspecialchars(sObj.nombre)}
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    ${warningBadgeHeader}
+                                    <span class="text-[10px] text-tertiary group-hover:underline font-extrabold flex items-center gap-1">
                                         <span>Ver informe</span>
-                                        <i class="fa-solid fa-arrow-right text-[8px]"></i>
+                                        <i class="fa-solid fa-arrow-right text-[9px]"></i>
                                     </span>
-                                </div>
-                                ${warningStrip}
-                                <div class="overflow-x-auto flex-1 my-1">
-                                    <table class="w-full text-left border-collapse text-xs">
-                                        <thead>
-                                            <tr class="bg-slate-50 dark:bg-[#0b101c]/60 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-[#1c2a47]">
-                                                <th class="py-1 px-2">CENTRO DE COSTO</th>
-                                                <th class="py-1 px-2 text-right">CANT</th>
-                                                <th class="py-1 px-2 text-right">VALOR</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-slate-100 dark:divide-[#1a263d]/60">
-                                            ${conceptosRowsHtml}
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
-                            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-[#1c2a47] flex items-baseline justify-between text-xs font-bold text-slate-800 dark:text-slate-100">
-                                <span class="text-[11px] text-slate-500 dark:text-slate-400">Subtotal Sede:</span>
-                                <span class="text-sm sm:text-base font-bold ${sObj.noCruzadoCount > 0 ? 'text-[#8c5717] dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400'} font-mono">$ ${sObj.totalValor.toLocaleString('es-CO')}</span>
+                            <div class="overflow-x-auto flex-1 p-1">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
+                                            <th class="py-1.5 px-2">CENTRO DE COSTO</th>
+                                            <th class="py-1.5 px-2 text-right">CANT</th>
+                                            <th class="py-1.5 px-2 text-right">VALOR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${conceptosRowsHtml}
+                                        <tr class="border-t-2 border-slate-300 dark:border-slate-700 font-bold bg-slate-50 dark:bg-slate-800/80 text-xs">
+                                            <td class="py-1.5 px-2 text-right font-black uppercase text-[10px] text-slate-500">TOTAL</td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-black text-slate-800 dark:text-slate-200">${sObj.totalCant.toLocaleString('es-CO')}</td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-black text-primary dark:text-tertiary">$ ${sObj.totalValor.toLocaleString('es-CO')}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     `;
@@ -6350,16 +6324,13 @@ usort($listaMedicos, function($a, $b) {
                 const sObj = sedesMap[sKey];
                 let noCruzadoSedeTag = '';
                 if (sObj.noCruzadoCount > 0) {
-                    noCruzadoSedeTag = `<div class="text-[10px] text-[#7d5013] dark:text-amber-400 font-medium flex items-center gap-1 mt-0.5"><span class="w-1.5 h-1.5 rounded-full bg-[#a6792c] dark:bg-amber-400"></span> ${sObj.noCruzadoCount} no cruzado(s)</div>`;
+                    noCruzadoSedeTag = `<span class="inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-extrabold text-[10px] ml-1" title="${sObj.noCruzadoCount} registro(s) no cruzado(s) por valor de $${sObj.noCruzadoValor.toLocaleString('es-CO')}"><span class="material-symbols-outlined text-xs">warning</span> (${sObj.noCruzadoCount} no cruzado)</span>`;
                 }
 
                 tbodyResumen.insertAdjacentHTML('beforeend', `
-                    <tr class="hover:bg-slate-50 dark:hover:bg-[#131e33]/50 transition-colors">
-                        <td class="py-1.5 px-1 text-slate-700 dark:text-slate-200 font-medium text-xs">
-                            <div>${htmlspecialchars(sObj.nombre)}</div>
-                            ${noCruzadoSedeTag}
-                        </td>
-                        <td class="py-1.5 px-1 text-right font-mono font-semibold text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">$ ${sObj.totalValor.toLocaleString('es-CO')}</td>
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td class="py-1.5 px-3 text-[11px] font-medium text-slate-700 dark:text-slate-300">${htmlspecialchars(sObj.nombre)} ${noCruzadoSedeTag}</td>
+                        <td class="py-1.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">$ ${sObj.totalValor.toLocaleString('es-CO')}</td>
                     </tr>
                 `);
             });

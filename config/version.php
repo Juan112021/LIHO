@@ -5,7 +5,7 @@
  */
 
 if (!defined('LIHO_VERSION')) {
-    define('LIHO_VERSION', '1.1.4');
+    define('LIHO_VERSION', '1.1.5');
 }
 
 if (!defined('LIHO_VERSION_DATE')) {
@@ -13,5 +13,5 @@ if (!defined('LIHO_VERSION_DATE')) {
 }
 
 if (!defined('LIHO_VERSION_NAME')) {
-    define('LIHO_VERSION_NAME', 'Armonización Cromática: Amarillo Mate y Opaco en Modo Claro');
+    define('LIHO_VERSION_NAME', 'Homologación Visual de Detalle de Liquidación por Sedes');
 }
