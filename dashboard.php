@@ -142,19 +142,38 @@ if (isset($con) && $con !== false) {
     <!-- Content Area -->
     <main class="flex-grow max-w-[1380px] w-full mx-auto px-4 sm:px-6 py-8">
         
-        <!-- Welcome Banner con Efectos de Brillo Ambientales -->
+        <!-- Welcome Banner con Efectos de Brillo Ambientales y Acceso al Manual -->
         <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-[#1c486a] to-[#006a68] p-8 md:p-10 text-white shadow-xl mb-8 border border-white/10 transition-all duration-300 hover:shadow-2xl">
-            <div class="relative z-10 max-w-3xl">
-                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-tertiary text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span>Sesión Autenticada - <?php echo htmlspecialchars($userRole); ?></span>
+            <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div class="max-w-2xl">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-tertiary text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>Sesión Autenticada - <?php echo htmlspecialchars($userRole); ?></span>
+                    </div>
+                    <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-3">
+                        Bienvenido, <?php echo htmlspecialchars($userName); ?>
+                    </h1>
+                    <p class="text-slate-200 text-sm md:text-base leading-relaxed font-medium">
+                        Plataforma de Liquidación y Gestión de Honorarios Médicos IPS de <strong>Hernán Ocazionez y Cía S.A.S.</strong>
+                    </p>
                 </div>
-                <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-3">
-                    Bienvenido, <?php echo htmlspecialchars($userName); ?>
-                </h1>
-                <p class="text-slate-200 text-sm md:text-base leading-relaxed max-w-2xl font-medium">
-                    Plataforma de Liquidación y Gestión de Honorarios Médicos IPS de <strong>Hernán Ocazionez y Cía S.A.S.</strong>
-                </p>
+
+                <!-- Botón Corporativo Destacado al Manual de Usuario -->
+                <a href="manual_usuario.php" 
+                    title="Consultar Manual de Usuario y Guía Operativa"
+                    class="shrink-0 inline-flex items-center gap-3.5 p-4 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 hover:border-tertiary/70 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 group">
+                    <div class="p-3 rounded-xl bg-gradient-to-tr from-tertiary to-emerald-400 text-primary shadow-md group-hover:rotate-6 transition-transform">
+                        <span class="material-symbols-outlined text-2xl font-bold">menu_book</span>
+                    </div>
+                    <div class="text-left">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-black text-white group-hover:text-tertiary transition-colors">Manual de Usuario</span>
+                            <span class="text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded bg-tertiary/20 text-tertiary border border-tertiary/40">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 font-medium">Guía operativa y reglas del sistema</p>
+                    </div>
+                    <span class="material-symbols-outlined text-base text-tertiary group-hover:translate-x-1 transition-transform">arrow_forward</span>
+                </a>
             </div>
             <!-- Círculo decorativo de fondo -->
             <div class="absolute -right-10 -bottom-10 w-96 h-96 bg-tertiary/20 rounded-full blur-3xl pointer-events-none"></div>

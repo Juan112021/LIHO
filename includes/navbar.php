@@ -64,6 +64,7 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
 
 // Módulos con permisos según el rol y excepciones individuales
 require_once __DIR__ . '/permisos_helper.php';
+require_once __DIR__ . '/../config/version.php';
 $navUserId = intval($_SESSION['user_id'] ?? 0);
 $userRoleIdVal = intval($_SESSION['user_role_id'] ?? ($userRole === 'ADMINISTRADOR' ? 1 : ($userRole === 'FINANCIERO' ? 2 : ($userRole === 'MÉDICO' ? 3 : 0))));
 
@@ -1033,6 +1034,15 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                 </button>
                 <?php endif; ?>
 
+                <!-- Botón Destacado: Manual de Usuario Corporativo -->
+                <a href="manual_usuario.php" 
+                    title="Abrir Manual de Uso Oficial y Guía Operativa (v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?>)"
+                    class="whitespace-nowrap inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-800 dark:text-tertiary border border-emerald-500/40 dark:border-tertiary/40 text-xs font-black shadow-sm transition-all duration-200 hover:scale-105 active:scale-95 shrink-0 group/manbtn">
+                    <span class="material-symbols-outlined text-base text-emerald-600 dark:text-tertiary group-hover/manbtn:rotate-6 transition-transform">menu_book</span>
+                    <span class="hidden md:inline">Manual</span>
+                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-600/15 dark:bg-tertiary/20 text-emerald-800 dark:text-tertiary font-black border border-emerald-500/30">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span>
+                </a>
+
                 <!-- Botón Módulos (Estilo SaaS "Get Started" con micro-interacción) -->
                 <button type="button" id="openDrawerBtn" 
                     title="Abrir panel completo de todos los módulos"
@@ -1091,6 +1101,10 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                             <a href="cambiar_clave.php" class="flex items-center gap-2.5 px-4 py-2 text-xs text-slate-700 dark:text-slate-300 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-primary dark:hover:text-tertiary transition-colors">
                                 <span class="material-symbols-outlined text-base text-slate-400">key</span>
                                 <span>Cambiar Contraseña</span>
+                            </a>
+                            <a href="manual_usuario.php" class="flex items-center gap-2.5 px-4 py-2 text-xs text-teal-600 dark:text-tertiary font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800/80">
+                                <span class="material-symbols-outlined text-base text-teal-600 dark:text-tertiary">menu_book</span>
+                                <span>Manual de Usuario</span>
                             </a>
                         </div>
 

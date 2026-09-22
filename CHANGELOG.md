@@ -5,6 +5,37 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.0] - 2026-09-21
+
+### 🚀 Novedades
+- **Manual de Usuario Corporativo Interactivo (`manual_usuario.php`)**:
+  - Plataforma integral de documentación institucional y guía operativa para la IPS Hernán Ocazionez y Cía S.A.S.
+  - Buscador en tiempo real para encontrar secciones y términos clave al instante.
+  - Filtro interactivo por perfil de usuario (`Todos`, `Médico`, `Financiero`, `Administrador`).
+  - Documentación paso a paso de los 9 módulos del sistema: conciliación bidireccional, liquidaciones, notas de ajuste, tarifarios y vigencias temporales, bloqueos, certificados tributarios y control forense.
+  - Función de impresión y exportación a PDF para archivo físico o digital.
+- **Acceso Rápido y Destacado en Interfaz**:
+  - Botón prominente en la barra de navegación (`includes/navbar.php`) con badge dinámico de versión.
+  - Tarjeta de acceso interactiva dentro del banner de bienvenida principal (`dashboard.php`).
+  - Enlace directo en el menú desplegable de usuario y en el pie de página (`includes/footer.php`).
+
+### 🔧 Mejoras
+- **Centralización del Versionado (`config/version.php`)**:
+  - Creación de constantes institucionales `LIHO_VERSION`, `LIHO_VERSION_DATE` y `LIHO_VERSION_NAME` vinculadas a todas las vistas, footer, navbar y changelog.
+- **Normalización de Versión en Footer**:
+  - Reemplazo de versión estática por la constante centralizada `LIHO_VERSION`.
+
+### 📂 Archivos Modificados
+- `config/version.php` [NUEVO]
+- `manual_usuario.php` [NUEVO]
+- `includes/navbar.php`
+- `includes/footer.php`
+- `dashboard.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.0.0] - 2026-09-21
 
 ### 🚀 Versión Base Inicial y Consolidación del Sistema

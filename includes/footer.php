@@ -1,10 +1,16 @@
+<?php require_once __DIR__ . '/../config/version.php'; ?>
 <footer class="no-print bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 mt-auto py-5 transition-colors duration-300">
     <div class="flex flex-col md:flex-row justify-between items-center w-full px-6 max-w-[1440px] mx-auto text-xs text-slate-500 dark:text-slate-400 space-y-3 md:space-y-0">
         
         <div class="flex flex-wrap items-center gap-2">
             <span class="font-bold text-primary dark:text-tertiary">Hernán Ocazionez y Cía S.A.S.</span>
             <span class="text-slate-300 dark:text-slate-700">|</span>
-            <p>© <?php echo date('Y'); ?> Plataforma LIHO <span class="font-extrabold text-tertiary ml-0.5">v1.1.9</span></p>
+            <p>© <?php echo date('Y'); ?> Plataforma LIHO <span class="font-extrabold text-tertiary ml-0.5">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span></p>
+            <span class="text-slate-300 dark:text-slate-700">•</span>
+            <a href="manual_usuario.php" class="font-bold text-teal-600 dark:text-tertiary hover:underline flex items-center gap-1 transition-colors">
+                <span class="material-symbols-outlined text-sm">menu_book</span>
+                <span>Manual de Uso</span>
+            </a>
         </div>
 
         <!-- Botón Reportar Fallas / Soporte Técnico -->

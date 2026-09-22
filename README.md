@@ -5,7 +5,8 @@
 ![Database](https://img.shields.io/badge/Database-SQL%20Server-red?logo=microsoft-sql-server)
 ![Oracle Servinte](https://img.shields.io/badge/ERP-Servinte%20(Oracle)-orange?logo=oracle)
 ![Frontend](https://img.shields.io/badge/UI-Tailwind%20CSS-teal?logo=tailwindcss)
-![Version](https://img.shields.io/badge/Version-v1.0.0-success)
+![Version](https://img.shields.io/badge/Version-v1.1.0-success)
+![Manual](https://img.shields.io/badge/Manual-Corporativo%20Interactivo-teal?logo=gitbook)
 ![Status](https://img.shields.io/badge/Status-Activo-emerald)
 
 ---
@@ -15,6 +16,8 @@
 **LIHO** es la plataforma integral de liquidación de honorarios médicos, facturación diagnóstica y conciliación de exámenes desarrollada para la IPS **Hernán Ocazionez y Cía S.A.S.** 
 
 El sistema realiza el cruce bidireccional entre la información de producción clínica (registrada en **PROTEO / SQL Server**) y el sistema de facturación y admisiones hospitalarias (**SERVINTE / Oracle**), calculando de forma automatizada y transparente los valores exactos a pagar a cada médico especialista según sus modalidades contractuales, vigencias tarifarias y esquemas tributarios colombianos.
+
+Cuenta con un **Manual de Usuario Corporativo Interactivo** accesible en vivo desde el sistema (`manual_usuario.php`) con buscador en tiempo real y filtrado de guías por perfil asistencial y administrativo.
 
 ---
 
