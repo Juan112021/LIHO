@@ -1206,41 +1206,43 @@ for ($i = 0; $i < 18; $i++) {
             for (const [sede, sData] of Object.entries(sedesObj)) {
                 if (sData && typeof sData === 'object' && Array.isArray(sData.examenes)) {
                     sData.examenes.forEach(ex => {
+                        const esBoni = (ex.es_bonificacion === true || ex.cups === 'BONI_TOHO' || ex.id_ref === 'BONI_TOHO' || (ex.examen && (ex.examen.toUpperCase().includes('BONIFICACI') || ex.examen.toUpperCase().includes('BONI_TOHO'))));
                         rows.push([
-                            ex.origen || 'PROTEO',
-                            ex.id_ref || ex.id || '',
-                            ex.fuente || '',
-                            ex.ingreso || '',
-                            ex.tipo_paciente || 'Empresa',
+                            ex.origen || (esBoni ? 'SISTEMA' : 'PROTEO'),
+                            ex.id_ref || ex.id || (esBoni ? 'BONI_TOHO' : ''),
+                            ex.fuente || (esBoni ? 'LIHO' : ''),
+                            ex.ingreso || (esBoni ? 'BONIFICACION' : ''),
+                            ex.tipo_paciente || (esBoni ? 'Incentivo' : 'Empresa'),
                             ex.fecha || item.periodo_hasta || '',
                             ex.sede || sede,
                             ex.medico_nombre || item.medico_nombre || '',
                             ex.medico_cedula || item.medico_cedula || '',
-                            ex.paciente || ex.nombre || '',
-                            ex.documento || '',
-                            ex.entidad || '',
-                            ex.cups || '',
-                            ex.examen || ex.nombre_examen || '',
+                            ex.paciente || (esBoni ? 'INCENTIVO POR PRODUCTIVIDAD' : (ex.nombre || '')),
+                            ex.documento || (esBoni ? 'N/A' : ''),
+                            ex.entidad || (esBoni ? 'LIHO IPS' : ''),
+                            ex.cups || (esBoni ? 'BONI_TOHO' : ''),
+                            ex.examen || ex.nombre_examen || (esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)' : ''),
                             parseInt(ex.cantidad || 1)
                         ]);
                     });
                 } else if (sData && sData.conceptos) {
                     for (const [cKey, cVal] of Object.entries(sData.conceptos)) {
+                        const esBoni = (cVal.es_bonificacion === true || cKey.includes('BONIFICACI') || cKey.includes('BONI') || cKey === 'BONI_TOHO');
                         rows.push([
-                            'PROTEO',
-                            '',
-                            '',
-                            '',
-                            'Empresa',
+                            esBoni ? 'SISTEMA' : 'PROTEO',
+                            esBoni ? 'BONI_TOHO' : '',
+                            esBoni ? 'LIHO' : '',
+                            esBoni ? 'BONIFICACION' : '',
+                            esBoni ? 'Incentivo' : 'Empresa',
                             item.periodo_hasta || '',
                             sede,
                             item.medico_nombre,
                             item.medico_cedula,
-                            'PACIENTES AGRUPADOS',
-                            '',
-                            '',
-                            cKey,
-                            'ESTUDIOS MÉDICOS / RXSI',
+                            esBoni ? 'INCENTIVO POR PRODUCTIVIDAD' : 'PACIENTES AGRUPADOS',
+                            esBoni ? 'N/A' : '',
+                            esBoni ? 'LIHO IPS' : '',
+                            esBoni ? 'BONI_TOHO' : cKey,
+                            esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)' : 'ESTUDIOS MÉDICOS / RXSI',
                             parseInt(cVal.cantidad || cVal.cant || 1)
                         ]);
                     }
@@ -1377,6 +1379,9 @@ for ($i = 0; $i < 18; $i++) {
                 let totalFacturaSum = 0;
                 let globalNoCruzadosCount = 0;
                 let globalNoCruzadosValor = 0;
+                let totalBonosTomografia = 0;
+                let totalBonosTomografiaValor = 0;
+                let sedesConBono = [];
 
                 const sedesKeys = Object.keys(sedesObj).sort();
 
@@ -1406,26 +1411,45 @@ for ($i = 0; $i < 18; $i++) {
                             globalNoCruzadosValor += sNoCruzadoValor;
 
                             for (const [cKey, cVal] of Object.entries(sData.conceptos)) {
-                                conceptosMap[cKey] = {
-                                    nombre: cKey,
-                                    cant: cVal.cantidad || 0,
-                                    valor: parseFloat(cVal.total || 0),
-                                    cruzadoCant: cVal.cantidad || 0,
-                                    cruzadoValor: parseFloat(cVal.total || 0),
+                                const esBoni = (cVal.es_bonificacion === true || cKey.includes('BONIFICACI') || cKey.includes('BONI') || cKey === 'BONI_TOHO');
+                                const cNombre = esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS' : cKey;
+                                const cCant = parseInt(cVal.cantidad || cVal.cant || 0);
+                                const cValPagar = parseFloat(cVal.total || cVal.valor || 0);
+
+                                if (esBoni) {
+                                    totalBonosTomografia += cCant;
+                                    totalBonosTomografiaValor += cValPagar;
+                                    if (!sedesConBono.includes(sKey)) sedesConBono.push(sKey);
+                                }
+
+                                conceptosMap[cNombre] = {
+                                    nombre: cNombre,
+                                    cant: cCant,
+                                    valor: cValPagar,
+                                    cruzadoCant: cCant,
+                                    cruzadoValor: cValPagar,
                                     noCruzadoCant: 0,
                                     noCruzadoValor: 0,
-                                    cruceTipos: new Set()
+                                    cruceTipos: new Set(),
+                                    esBonificacion: esBoni
                                 };
                             }
                         } else if (sData && typeof sData === 'object' && Array.isArray(sData.examenes) && sData.examenes.length > 0) {
                             totalSedeVal = parseFloat(sData.total || 0);
                             sData.examenes.forEach(ex => {
+                                const esBoni = (ex.es_bonificacion === true || ex.cups === 'BONI_TOHO' || ex.id_ref === 'BONI_TOHO' || (ex.examen && (ex.examen.toUpperCase().includes('BONIFICACI') || ex.examen.toUpperCase().includes('BONI_TOHO'))));
                                 const esCruzado = (ex.cruce === 'CRUZADO');
                                 const cruceTipo = ex.cruce || 'SOLO_PROTEO';
                                 const v = parseFloat(ex.valor_a_pagar) || 0;
+                                const cantEx = parseInt(ex.cantidad) || 1;
 
                                 let cKey = '';
-                                if (esCruzado) {
+                                if (esBoni) {
+                                    cKey = 'BONIFICACIÓN TOMOGRAFÍAS';
+                                    totalBonosTomografia += cantEx;
+                                    totalBonosTomografiaValor += v;
+                                    if (!sedesConBono.includes(sKey)) sedesConBono.push(sKey);
+                                } else if (esCruzado) {
                                     if (ex.cups && (ex.cups.toLowerCase().includes('eco') || ex.cups.toLowerCase().includes('ultrasonido'))) {
                                         cKey = 'ECOGRAFÍAS';
                                     } else {
@@ -1448,24 +1472,25 @@ for ($i = 0; $i < 18; $i++) {
                                         cruzadoValor: 0,
                                         noCruzadoCant: 0,
                                         noCruzadoValor: 0,
-                                        cruceTipos: new Set()
+                                        cruceTipos: new Set(),
+                                        esBonificacion: esBoni
                                     };
                                 }
 
-                                conceptosMap[cKey].cant++;
+                                conceptosMap[cKey].cant += cantEx;
                                 conceptosMap[cKey].valor += v;
-                                totalSedeCant++;
+                                totalSedeCant += cantEx;
 
-                                if (esCruzado) {
-                                    conceptosMap[cKey].cruzadoCant++;
+                                if (esBoni || esCruzado) {
+                                    conceptosMap[cKey].cruzadoCant += cantEx;
                                     conceptosMap[cKey].cruzadoValor += v;
                                 } else {
-                                    conceptosMap[cKey].noCruzadoCant++;
+                                    conceptosMap[cKey].noCruzadoCant += cantEx;
                                     conceptosMap[cKey].noCruzadoValor += v;
                                     conceptosMap[cKey].cruceTipos.add(cruceTipo);
-                                    sNoCruzadoCount++;
+                                    sNoCruzadoCount += cantEx;
                                     sNoCruzadoValor += v;
-                                    globalNoCruzadosCount++;
+                                    globalNoCruzadosCount += cantEx;
                                     globalNoCruzadosValor += v;
                                 }
                             });
@@ -1484,7 +1509,8 @@ for ($i = 0; $i < 18; $i++) {
                                 cruzadoValor: totalSedeVal,
                                 noCruzadoCant: 0,
                                 noCruzadoValor: 0,
-                                cruceTipos: new Set()
+                                cruceTipos: new Set(),
+                                esBonificacion: false
                             };
                         }
 
@@ -1504,6 +1530,23 @@ for ($i = 0; $i < 18; $i++) {
                         // Conceptos Rows
                         let conceptosRowsHtml = '';
                         Object.values(conceptosMap).forEach(cObj => {
+                            if (cObj.esBonificacion) {
+                                conceptosRowsHtml += `
+                                    <tr class="border-b border-amber-200/90 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 transition-colors">
+                                        <td class="py-2 px-2 text-[11px] font-bold text-amber-950 dark:text-amber-200">
+                                            <div class="flex items-center flex-wrap gap-1.5">
+                                                <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">military_tech</span>
+                                                <span class="font-black tracking-tight text-amber-900 dark:text-amber-100" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                                <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700">INCENTIVO (50 CT)</span>
+                                            </div>
+                                        </td>
+                                        <td class="py-2 px-2 text-right font-mono font-black text-amber-900 dark:text-amber-200 text-[11px]">${cObj.cant.toLocaleString('es-CO')} bono(s)</td>
+                                        <td class="py-2 px-2 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
+                                    </tr>
+                                `;
+                                return;
+                            }
+
                             let advertenciaConcepto = '';
                             if (cObj.noCruzadoCant > 0) {
                                 const tiposArr = Array.from(cObj.cruceTipos).map(t => {
@@ -2130,6 +2173,38 @@ for ($i = 0; $i < 18; $i++) {
                     `;
                 }
 
+                let bonoTomografiaBannerHtml = '';
+                if (totalBonosTomografia > 0 || totalBonosTomografiaValor > 0) {
+                    const sedesStr = sedesConBono.length > 0 ? sedesConBono.join(', ') : 'Principal';
+                    bonoTomografiaBannerHtml = `
+                        <!-- Banner Destacado de Bonificación por Tomografías Contrastadas -->
+                        <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border-2 border-amber-400/60 dark:border-amber-500/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 avoid-page-break">
+                            <div class="flex items-center gap-3.5">
+                                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-2xl shadow-inner shrink-0 border border-amber-400/30">
+                                    <span class="material-symbols-outlined text-2xl">military_tech</span>
+                                </div>
+                                <div class="space-y-0.5">
+                                    <div class="flex items-center flex-wrap gap-2">
+                                        <h4 class="font-outfit font-black text-xs sm:text-sm text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                                            <span>Bonificación por Tomografías Contrastadas</span>
+                                        </h4>
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                            Regla Institucional: 50 CT × $150.000 COP
+                                        </span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+                                        Concepto de incentivo reconocido al especialista: <strong class="text-amber-800 dark:text-amber-300 font-bold">${totalBonosTomografia} bono(s) alcanzado(s)</strong> en sede(s) <strong class="text-slate-800 dark:text-slate-200">${htmlspecialchars(sedesStr)}</strong>.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="text-left sm:text-right shrink-0 bg-white/70 dark:bg-slate-900/70 sm:bg-transparent px-3.5 py-2 rounded-xl sm:p-0 border sm:border-0 border-amber-300/40 dark:border-amber-700/40">
+                                <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Incentivo Reconocido</span>
+                                <span class="font-outfit font-black text-lg sm:text-xl text-amber-600 dark:text-amber-400">+$ ${totalBonosTomografiaValor.toLocaleString('es-CO')}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 const body = document.getElementById('modalBodyDetail');
                 body.innerHTML = `
                     <!-- Formal Corporate Print Header (Visible en Impresión / PDF) -->
@@ -2169,6 +2244,8 @@ for ($i = 0; $i < 18; $i++) {
                             <p class="text-[10px] text-slate-400 mt-0.5">REGISTRADO POR: ${htmlspecialchars(item.usuario_creador_nombre || 'SISTEMA')}</p>
                         </div>
                     </div>
+
+                    ${bonoTomografiaBannerHtml}
 
                     <!-- Main 2-Column Grid -->
                     <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -2391,17 +2468,19 @@ for ($i = 0; $i < 18; $i++) {
 
                 if (examenes.length > 0) {
                     examenes.forEach(ex => {
-                        const cName = (ex.examen || ex.cups || 'CONCEPTO').trim();
+                        const esBoni = (ex.es_bonificacion === true || ex.cups === 'BONI_TOHO' || ex.id_ref === 'BONI_TOHO' || (ex.examen && (ex.examen.toUpperCase().includes('BONIFICACI') || ex.examen.toUpperCase().includes('BONI_TOHO'))));
+                        const cName = esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS' : (ex.examen || ex.cups || 'CONCEPTO').trim();
                         if (!conceptosMap[cName]) {
-                            conceptosMap[cName] = { nombre: cName, cant: 0, valor: 0, noCruzados: 0, esSoloProteo: false };
+                            conceptosMap[cName] = { nombre: cName, cant: 0, valor: 0, noCruzados: 0, esSoloProteo: false, esBonificacion: esBoni };
                         }
-                        conceptosMap[cName].cant++;
+                        const cantEx = parseInt(ex.cantidad) || 1;
+                        conceptosMap[cName].cant += cantEx;
                         const v = parseFloat(ex.valor_a_pagar) || 0;
                         conceptosMap[cName].valor += v;
-                        totalCantSede++;
+                        totalCantSede += cantEx;
 
-                        if (ex.cruce !== 'CRUZADO') {
-                            conceptosMap[cName].noCruzados++;
+                        if (!esBoni && ex.cruce !== 'CRUZADO') {
+                            conceptosMap[cName].noCruzados += cantEx;
                             conceptosMap[cName].esSoloProteo = true;
                         }
                     });
@@ -2412,13 +2491,31 @@ for ($i = 0; $i < 18; $i++) {
                         cant: cantEst,
                         valor: totalVal,
                         noCruzados: 0,
-                        esSoloProteo: false
+                        esSoloProteo: false,
+                        esBonificacion: false
                     };
                     totalCantSede = cantEst;
                 }
 
                 let conceptosRowsHtml = '';
                 Object.values(conceptosMap).forEach(cObj => {
+                    if (cObj.esBonificacion) {
+                        conceptosRowsHtml += `
+                            <tr class="border-b border-amber-900/40 bg-amber-950/30 hover:bg-amber-950/50">
+                                <td class="py-2 px-3 font-bold text-amber-200 text-xs">
+                                    <div class="flex items-center flex-wrap gap-1.5">
+                                        <span class="material-symbols-outlined text-amber-400 text-sm">military_tech</span>
+                                        <span class="truncate max-w-[320px]" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-amber-900 text-amber-200 border border-amber-700">INCENTIVO (50 CT)</span>
+                                    </div>
+                                </td>
+                                <td class="py-2 px-3 text-right font-mono font-bold text-amber-200 text-xs">${cObj.cant.toLocaleString('es-CO')} bono(s)</td>
+                                <td class="py-2 px-3 text-right font-mono font-bold text-amber-400 text-xs">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
+                            </tr>
+                        `;
+                        return;
+                    }
+
                     let badgeAdvertencia = '';
                     if (cObj.noCruzados > 0 || cObj.esSoloProteo) {
                         badgeAdvertencia = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black bg-rose-950/90 text-rose-300 border border-rose-700/80 ml-2 shrink-0"><i class="fa-solid fa-circle-xmark text-[9px]"></i> No Cruzado (Solo Proteo)</span>`;
@@ -2442,6 +2539,39 @@ for ($i = 0; $i < 18; $i++) {
                 let pacienteRowsHtml = '';
                 if (examenes.length > 0) {
                     examenes.forEach((ex) => {
+                        const esBoni = (ex.es_bonificacion === true || ex.cups === 'BONI_TOHO' || ex.id_ref === 'BONI_TOHO' || (ex.examen && (ex.examen.toUpperCase().includes('BONIFICACI') || ex.examen.toUpperCase().includes('BONI_TOHO'))));
+
+                        if (esBoni) {
+                            pacienteRowsHtml += `
+                                <tr class="border-b border-amber-900/40 bg-amber-950/20 hover:bg-amber-950/40 transition-colors text-left text-xs">
+                                    <td class="py-2 px-3">
+                                        <div class="font-bold text-amber-300 flex items-center gap-1.5">
+                                            <span class="material-symbols-outlined text-sm text-amber-400">military_tech</span>
+                                            <span>INCENTIVO POR PRODUCTIVIDAD</span>
+                                        </div>
+                                        <div class="text-[10px] font-mono text-slate-400">Regla: 50 tomografías contrastadas</div>
+                                    </td>
+                                    <td class="py-2 px-3">
+                                        <div class="font-semibold text-amber-100 flex items-center gap-1.5 flex-wrap">
+                                            <span>${htmlspecialchars(ex.examen || 'BONIFICACIÓN TOMOGRAFÍAS')}</span>
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-amber-900 text-amber-200 border border-amber-700">
+                                                INCENTIVO / BONO
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-amber-400 font-mono">CUPS: BONI_TOHO</div>
+                                    </td>
+                                    <td class="py-2 px-3 font-mono text-[11px] text-amber-300">BONIFICACIÓN</td>
+                                    <td class="py-2 px-3 text-right font-mono font-bold text-amber-400">+$ ${(parseFloat(ex.valor_a_pagar) || 0).toLocaleString('es-CO')}</td>
+                                    <td class="py-2 px-3 text-center">
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-950 text-amber-300 border border-amber-700 inline-flex items-center gap-1">
+                                            <i class="fa-solid fa-award"></i> Bonificación
+                                        </span>
+                                    </td>
+                                </tr>
+                            `;
+                            return;
+                        }
+
                         const esCruzado = (ex.cruce === 'CRUZADO');
                         const badgeCruce = esCruzado 
                             ? `<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> Cruzado OK</span>`

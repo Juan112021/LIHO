@@ -227,16 +227,30 @@ function generarResumenSedesJSON($detalles) {
             foreach ($sData['examenes'] as $ex) {
                 $cruce = $ex['cruce'] ?? 'SOLO_PROTEO';
                 $v = floatval($ex['valor_a_pagar'] ?? 0);
-                if ($cruce === 'CRUZADO') {
-                    $nom = strtoupper($ex['examen'] ?? '');
-                    $grp = (strpos($nom, 'ECO') !== false) ? 'ECOGRAFÍAS' : 'RXSI';
+                $cant = intval($ex['cantidad'] ?? 1);
+                if ($cant <= 0) $cant = 1;
+
+                $cups = strtoupper(trim($ex['cups'] ?? ''));
+                $idRef = strtoupper(trim($ex['id_ref'] ?? ''));
+                $nom = strtoupper(trim($ex['examen'] ?? ''));
+                $esBoni = (!empty($ex['es_bonificacion']) || $cups === 'BONI_TOHO' || $idRef === 'BONI_TOHO' || strpos($nom, 'BONI_TOHO') !== false || strpos($nom, 'BONIFICACIÓN') !== false || strpos($nom, 'BONIFICACION') !== false);
+
+                if ($esBoni) {
+                    $grp = 'BONIFICACIÓN TOMOGRAFÍAS';
+                    if (!isset($conceptos[$grp])) {
+                        $conceptos[$grp] = array('cantidad' => 0, 'total' => 0, 'es_bonificacion' => true);
+                    }
+                    $conceptos[$grp]['cantidad'] += $cant;
+                    $conceptos[$grp]['total'] += $v;
+                } elseif ($cruce === 'CRUZADO') {
+                    $grp = (strpos($nom, 'ECO') !== false || strpos($cups, 'ECO') !== false) ? 'ECOGRAFÍAS' : 'RXSI';
                     if (!isset($conceptos[$grp])) {
                         $conceptos[$grp] = array('cantidad' => 0, 'total' => 0);
                     }
-                    $conceptos[$grp]['cantidad']++;
+                    $conceptos[$grp]['cantidad'] += $cant;
                     $conceptos[$grp]['total'] += $v;
                 } else {
-                    $noCruzadosCant++;
+                    $noCruzadosCant += $cant;
                     $noCruzadosVal += $v;
                 }
             }
@@ -733,8 +747,18 @@ function obtenerLiquidacionPorIdBD($id, $incluirDetallesCompletos = false) {
             $row['fecha_aprobacion'] = $row['fecha_aprobacion']->format('Y-m-d H:i:s');
         }
 
-        // Si es un registro previo sin resumen_sedes_json, generarlo en caliente y guardarlo
-        if (empty($row['resumen_sedes_json'])) {
+        // Si es un registro previo sin resumen_sedes_json, o que no tiene desagregado el bono de tomografía, generarlo en caliente y guardarlo
+        $necesitaRegenerar = empty($row['resumen_sedes_json']);
+        if (!$necesitaRegenerar && strpos($row['resumen_sedes_json'], 'BONI') === false) {
+            $stmtFullCheck = sqlsrv_query($con, "SELECT detalles_json FROM liquidaciones_turnos WHERE id = ?", array($id));
+            if ($stmtFullCheck && ($rowFullCheck = sqlsrv_fetch_array($stmtFullCheck, SQLSRV_FETCH_ASSOC))) {
+                if (strpos($rowFullCheck['detalles_json'] ?? '', 'BONI_TOHO') !== false) {
+                    $necesitaRegenerar = true;
+                }
+            }
+        }
+
+        if ($necesitaRegenerar) {
             $stmtFull = sqlsrv_query($con, "SELECT detalles_json FROM liquidaciones_turnos WHERE id = ?", array($id));
             if ($stmtFull && ($rowFull = sqlsrv_fetch_array($stmtFull, SQLSRV_FETCH_ASSOC))) {
                 $resumen = generarResumenSedesJSON($rowFull['detalles_json']);

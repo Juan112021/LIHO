@@ -5,7 +5,7 @@
 ![Database](https://img.shields.io/badge/Database-SQL%20Server-red?logo=microsoft-sql-server)
 ![Oracle Servinte](https://img.shields.io/badge/ERP-Servinte%20(Oracle)-orange?logo=oracle)
 ![Frontend](https://img.shields.io/badge/UI-Tailwind%20CSS-teal?logo=tailwindcss)
-![Version](https://img.shields.io/badge/Version-v1.1.2-success)
+![Version](https://img.shields.io/badge/Version-v1.1.3-success)
 ![Manual](https://img.shields.io/badge/Manual-Corporativo%20Interactivo-teal?logo=gitbook)
 ![Status](https://img.shields.io/badge/Status-Activo-emerald)
 
@@ -45,8 +45,9 @@ Cuenta con un **Manual de Usuario Corporativo Interactivo** accesible en vivo de
 
 ### 5. 💰 Aprobación de Liquidaciones y Ajustes (`aprobacion_liquidaciones.php`, `notas_ajuste.php`)
 - Flujo de revisión, aprobación y emisión de preliquidaciones para el equipo financiero y administrativo.
-- Registro de **Notas de Ajuste** (débito/crédito) con auditoría completa de motivos y autorizaciones.
-- Generación de reportes de liquidación en formato PDF mediante FPDF.
+- **Transparencia en Bonificaciones**: Desglose explícito e individualizado del concepto de **Bonificación por Tomografías Contrastadas** (`BONIFICACIÓN TOMOGRAFÍAS`, 50 CT × $150.000 COP) con banner destacado de incentivo, badges institucionales y auditoría por sede.
+- Registro de **Notas de Ajuste** (débito/crédito) con auditoría completa de motivos, conciliación de saldos y doble huella criptográfica SHA-256.
+- Generación de reportes de liquidación en formato PDF y exportación completa a Excel.
 
 ### 6. 📑 Certificados Tributarios (`certificados_tributarios.php`)
 - Emisión formal de certificados de retención en la fuente para médicos especialistas.

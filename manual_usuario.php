@@ -437,6 +437,13 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                                     Si surge alguna discrepancia posterior, se emite una Nota Débito o Crédito en <code>notas_ajuste.php</code> especificando la justificación y monto exacto.
                                 </div>
                             </div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60">
+                                <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">4</span>
+                                <div>
+                                    <strong class="text-xs text-amber-900 dark:text-amber-200">Desglose de Conceptos e Incentivos (Bono Tomografías):</strong>
+                                    En el modal de detalle (<em>Ver Detalle</em>) y en los informes por sede, se presenta un desglose claro e individualizado de los conceptos liquidados. Los incentivos de productividad por tomografías contrastadas (regla de 50 estudios contrastados × $150.000 COP) se muestran con insignias destacadas, banner corporativo e información detallada de la sede donde se causó.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>

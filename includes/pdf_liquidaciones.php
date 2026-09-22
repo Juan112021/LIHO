@@ -133,7 +133,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     $pdf->Cell(36, 4.5, utf8_decode('REGISTRADO POR:'), 0, 0, 'L');
     $pdf->SetFont('Arial', '', 8);
     $pdf->SetTextColor(15, 23, 42);
-    $pdf->Cell(70, 4.5, utf8_decode($liq['usuario_creador_nombre'] ?: 'SISTEMA'), 0, 0, 'L');
+    $pdf->Cell(70, 4.5, utf8_decode(($liq['usuario_creador_nombre'] ?? '') ?: 'SISTEMA'), 0, 0, 'L');
 
     $pdf->SetXY(122, 39.5);
     $pdf->SetFont('Arial', 'B', 7.5);
@@ -141,7 +141,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     $pdf->Cell(26, 4.5, utf8_decode('APROBADO POR:'), 0, 0, 'L');
     $pdf->SetFont('Arial', 'B', 8);
     $pdf->SetTextColor(13, 148, 136);
-    $pdf->Cell(48, 4.5, utf8_decode($liq['usuario_aprobador_nombre'] ?: 'Dirección Médica'), 0, 1, 'L');
+    $pdf->Cell(48, 4.5, utf8_decode(($liq['usuario_aprobador_nombre'] ?? '') ?: 'Dirección Médica'), 0, 1, 'L');
 
     // 2. Desglose de Estudios Realizados Agrupados por Concepto
     $pdf->SetY(52);
@@ -213,7 +213,11 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
                     $pdf->SetTextColor(30, 41, 59);
                     $pdf->SetFont('Arial', 'B', 7.5);
                     $pdf->Cell(65, 5, utf8_decode(strtoupper($sedeNombre)), 1, 0, 'L', true);
-                    $pdf->SetFont('Arial', '', 7.5);
+                    if (strlen($cKey) > 18) {
+                        $pdf->SetFont('Arial', 'B', 6.5);
+                    } else {
+                        $pdf->SetFont('Arial', '', 7.5);
+                    }
                     $pdf->Cell(45, 5, utf8_decode($cKey), 1, 0, 'L', true);
                     $pdf->Cell(25, 5, number_format($cant, 0, ',', '.'), 1, 0, 'C', true);
                     $pdf->SetFont('Courier', 'B', 8);
@@ -542,21 +546,22 @@ function generarExcelLiquidacion($liquidacionIdOrData) {
             foreach ($sData['conceptos'] as $cKey => $cVal) {
                 $cant = intval($cVal['cantidad'] ?? ($cVal['cant'] ?? 1));
                 $valPagar = floatval($cVal['total'] ?? ($cVal['valor'] ?? 0));
+                $esBoni = (!empty($cVal['es_bonificacion']) || strpos($cKey, 'BONI') !== false || strpos($cKey, 'BONIFICACIÓN') !== false || strpos($cKey, 'BONIFICACION') !== false);
                 $rows[] = array(
-                    'PROTEO',
-                    '',
-                    '',
-                    '',
-                    'Empresa',
+                    $esBoni ? 'SISTEMA' : 'PROTEO',
+                    $esBoni ? 'BONI_TOHO' : '',
+                    $esBoni ? 'LIHO' : '',
+                    $esBoni ? 'BONIFICACION' : '',
+                    $esBoni ? 'Incentivo' : 'Empresa',
                     $liq['periodo_hasta'] ?? '',
                     $sede,
                     $liq['medico_nombre'],
                     $liq['medico_cedula'],
-                    'PACIENTES AGRUPADOS',
-                    '',
-                    '',
-                    $cKey,
-                    'ESTUDIOS MEDICOS / RXSI',
+                    $esBoni ? 'INCENTIVO POR PRODUCTIVIDAD' : 'PACIENTES AGRUPADOS',
+                    $esBoni ? 'N/A' : '',
+                    $esBoni ? 'LIHO IPS' : '',
+                    $esBoni ? 'BONI_TOHO' : $cKey,
+                    $esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)' : 'ESTUDIOS MEDICOS / RXSI',
                     $cant,
                     $valPagar
                 );

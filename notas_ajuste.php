@@ -2055,15 +2055,33 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                                 const cCant = parseInt(cObj.cantidad || cObj.cant || 0);
                                 const cVal = parseFloat(cObj.total || cObj.valor || 0);
 
-                                conceptosRowsHtml += `
-                                    <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                                        <td class="py-1.5 px-2 text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                                            <span class="truncate max-w-[180px] block" title="${htmlspecialchars(cNombre)}">${htmlspecialchars(cNombre)}</span>
-                                        </td>
-                                        <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">${cCant.toLocaleString('es-CO')}</td>
-                                        <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white text-[11px]">$ ${cVal.toLocaleString('es-CO')}</td>
-                                    </tr>
-                                `;
+                                const esBoni = (cObj.es_bonificacion === true || cNombre.includes('BONIFICACI') || cNombre.includes('BONI'));
+
+                                if (esBoni) {
+                                    conceptosRowsHtml += `
+                                        <tr class="border-b border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/40">
+                                            <td class="py-1.5 px-2 text-[11px] font-bold text-amber-950 dark:text-amber-200">
+                                                <div class="flex items-center gap-1">
+                                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xs">military_tech</span>
+                                                    <span class="truncate max-w-[180px] block" title="${htmlspecialchars(cNombre)}">${htmlspecialchars(cNombre)}</span>
+                                                    <span class="px-1 py-0.2 rounded text-[8px] font-black uppercase bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100">Bono</span>
+                                                </div>
+                                            </td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-black text-amber-900 dark:text-amber-200 text-[11px]">${cCant.toLocaleString('es-CO')} bono(s)</td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-[11px]">+$ ${cVal.toLocaleString('es-CO')}</td>
+                                        </tr>
+                                    `;
+                                } else {
+                                    conceptosRowsHtml += `
+                                        <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                            <td class="py-1.5 px-2 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                                                <span class="truncate max-w-[180px] block" title="${htmlspecialchars(cNombre)}">${htmlspecialchars(cNombre)}</span>
+                                            </td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-[11px]">${cCant.toLocaleString('es-CO')}</td>
+                                            <td class="py-1.5 px-2 text-right font-mono font-bold text-slate-900 dark:text-white text-[11px]">$ ${cVal.toLocaleString('es-CO')}</td>
+                                        </tr>
+                                    `;
+                                }
                             });
                         } else {
                             conceptosRowsHtml += `

@@ -5,7 +5,7 @@
  */
 
 if (!defined('LIHO_VERSION')) {
-    define('LIHO_VERSION', '1.1.2');
+    define('LIHO_VERSION', '1.1.3');
 }
 
 if (!defined('LIHO_VERSION_DATE')) {
@@ -13,5 +13,5 @@ if (!defined('LIHO_VERSION_DATE')) {
 }
 
 if (!defined('LIHO_VERSION_NAME')) {
-    define('LIHO_VERSION_NAME', 'Apertura Externa del Manual en Nueva Pestaña (target=_blank)');
+    define('LIHO_VERSION_NAME', 'Desglose del Concepto de Bonificación por Tomografías en Liquidaciones');
 }

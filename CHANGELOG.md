@@ -5,6 +5,30 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.3] - 2026-09-21
+
+### 🚀 Novedades y Transparencia Financiera
+- **Visualización y Desglose del Concepto de Bonificación por Tomografías (`aprobacion_liquidaciones.php`)**:
+  - **Identificación y Aislamiento de Concepto**: Ahora el bono de tomografías contrastadas (regla de 50 tomografías × $150.000 COP, código `BONI_TOHO`) se desagrega y presenta como un concepto institucional independiente (`BONIFICACIÓN TOMOGRAFÍAS`), evitando que quede oculto o agrupado dentro del concepto de `RXSI`.
+  - **Banner Corporativo de Incentivo**: Al abrir el detalle de una liquidación (`Ver Detalle`), si el profesional cuenta con bonos causados, se despliega un banner destacado en gradiente dorado/ámbar con icono de mérito (`military_tech`), especificando la regla aplicada, la sede donde se reconoció y el valor monetario adicional.
+  - **Fila Destacada por Sede**: En la tabla de centros de costo de cada sede, la bonificación se resalta con distintivo ámbar, indicando la cantidad exacta de bonos alcanzados (`1 bono(s)`) y el monto (`+$150.000 COP`).
+  - **Auditoría en Informe Detallado de Sede**: En la vista drill-down por sede (`Ver informe`), se incluye la bonificación tanto en el resumen de conceptos como en la tabla cronológica de registros con etiqueta `INCENTIVO POR PRODUCTIVIDAD` e insignia `Bonificación`.
+  - **Exportación en Excel y PDF**: Se actualizó la exportación completa a Excel y la generación de PDF oficial para que el concepto de incentivo se describa explícitamente como `BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)`.
+  - **Regeneración Dinámica y Retrocompatibilidad**: En `includes/liquidaciones_helper.php`, se adaptó `generarResumenSedesJSON()` y `obtenerLiquidacionPorIdBD()` para recalcular y actualizar en caliente el resumen de sedes en liquidaciones que contengan el bono.
+  - **Actualización del Manual de Usuario**: Se incorporó en `manual_usuario.php` la explicación operativa sobre la visualización e interpretación del bono de tomografías en las liquidaciones.
+
+### 📂 Archivos Modificados
+- `config/version.php`
+- `aprobacion_liquidaciones.php`
+- `includes/liquidaciones_helper.php`
+- `includes/pdf_liquidaciones.php`
+- `notas_ajuste.php`
+- `manual_usuario.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.1.2] - 2026-09-21
 
 ### 🔧 Mejoras de Navegación
