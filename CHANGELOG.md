@@ -1,0 +1,81 @@
+# Bitácora de Cambios y Versiones (CHANGELOG)
+Todas las modificaciones notables del proyecto **LIHO** (Hernán Ocazionez y Cía S.A.S.) se documentan en este archivo de manera cronológica.
+
+El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto se adhiere a [Semantic Versioning (SemVer)](https://semver.org/lang/es/).
+
+---
+
+## [1.0.0] - 2026-09-21
+
+### 🚀 Versión Base Inicial y Consolidación del Sistema
+
+Esta versión establece la línea base formal del sistema **LIHO** bajo control de versiones Git, integrando los módulos diagnósticos, administrativos, financieros y de conciliación clínica.
+
+#### 🔄 Cruce Bidireccional de Exámenes y Liquidación
+- **Cruce Automático Proteo vs Servinte**: Algoritmo de conciliación por pares Fuente-Ingreso con detección de discrepancias y estados de cruce (`CRUZADOS_OK`, `SOLO_PROTEO`, `SOLO_SERVINTE`).
+- **Cálculo de Tarifas y Modalidades**:
+  - Detección de tipo de paciente: Entidad (`E`) vs Particular (`P`).
+  - Regla especial de **Bonificación para Tomografías Contrastadas** (50 exámenes x $150.000 COP).
+  - Modalidades dinámicas: Degluciones (45%), Tarifas Especiales (30%), Pago Dinámico porcentual y por valor fijo.
+  - Soporte de base de cálculo (`VALOR_LIQUIDACION` vs `VALOR_EXAMEN`).
+  - Flag de `pagar_por_cantidad` para multiplicar o fijar el valor unitario.
+
+#### 📊 Tarifarios y Vigencias Temporales
+- Catálogo maestro de tarifas por código CUPS y entidad de salud.
+- Sistema de **Vigencias Temporales** con fechas de inicio (`vigencia_desde`) y fin (`vigencia_hasta`), permitiendo resolución histórica exacta de la tarifa que aplicaba en la fecha en que se realizó el examen médico.
+- Módulo de Tarifarios Especiales por médico y por examen.
+- Bloqueos de tarifas para restringir procedimientos no autorizados.
+
+#### 💰 Gestión Financiera, Aprobaciones y Retenciones
+- Pantalla de aprobación de liquidaciones con estados de flujo de trabajo.
+- Módulo de Notas de Ajuste débito y crédito con trazabilidad de usuario y motivo.
+- Emisión de Certificados Tributarios oficiales con retención en la fuente en PDF (FPDF).
+
+#### 🛡️ Seguridad, Auditoría y Entornos
+- Cifrado AES-256 en cadenas de conexión a bases de datos (`security_crypto.php`).
+- Autenticación con tokens de acceso vía correo electrónico (Gmail SMTP).
+- Asignación granular de roles (`ADMINISTRADOR`, `FINANCIERO`, `MÉDICO`) y permisos por vista.
+- Módulo de configuración de entorno: bloqueo de correos a médicos en desarrollo con redirección controlada a cuenta de pruebas.
+- Trazabilidad con `audit_logger.php` y registro de accesos.
+
+#### 🐛 Correcciones y Optimizaciones Recientes
+- **examenes_medicos.php**: Corrección de variable no inicializada `$valorUndServinte` en la línea 1569 que provocaba advertencias PHP y rompía la respuesta JSON en el navegador.
+- **Optimización de Índices en SQL Server**:
+  - Depuración y creación del índice `IX_tarifario_estado1` (`[estado], [entidad_id]`) con columnas calculadas para acelerar la carga de tarifas en milisegundos.
+  - Implementación del índice `IX_tarifario_version_id1` para búsquedas históricas por versión.
+  - Eliminación de índices redundantes que sobrecargaban las operaciones de escritura.
+
+#### 📂 Archivos Principales Incorporados
+- `examenes_medicos.php` — Conciliación bidireccional y liquidación médica.
+- `tarifario.php`, `historial_tarifario.php`, `tarifario_especial.php`, `tarifario_bloqueos.php` — Gestión tarifaria.
+- `aprobacion_liquidaciones.php`, `notas_ajuste.php`, `certificados_tributarios.php` — Módulos financieros.
+- `medicos.php`, `gestion_medicos_procedimientos.php` — Directorio médico.
+- `maestro_entidades.php`, `maestro_porcentajes.php`, `maestro_parafiscales.php` — Tablas maestras.
+- `usuarios.php`, `gestion_roles.php`, `logs.php` — Administración y auditoría.
+- `cron_alerta_medicos.php`, `alerta_medicos.php` — Tareas programadas de notificación.
+
+---
+
+## 📝 Guía para Nuevas Versiones
+
+Cada vez que se realicen cambios significativos, se añadirá una nueva sección superior respetando esta plantilla:
+
+```markdown
+## [X.Y.Z] - AAAA-MM-DD
+
+### 🚀 Novedades
+- Descripción de nuevas funcionalidades o pantallas agregadas.
+
+### 🔧 Mejoras
+- Optimizaciones de rendimiento, mejoras de interfaz o refactorizaciones.
+
+### 🐛 Correcciones
+- Solución de errores reportados o comportamientos inesperados.
+
+### 🔒 Seguridad y Configuración
+- Cambios en políticas de acceso, credenciales o variables de entorno.
+
+### 📂 Archivos Modificados
+- `archivo1.php`
+- `archivo2.php`
+```

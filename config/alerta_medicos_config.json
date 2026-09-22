@@ -1,0 +1,43 @@
+{
+    "fecha_modo": "rango_fijo",
+    "fecha_inicio": "2026-05-01",
+    "fecha_fin": "2026-08-31",
+    "tipo_destinatario": "rol_admin",
+    "tipos_destinatarios": [
+        "directora_medica",
+        "rol_admin",
+        "todos_medicos"
+    ],
+    "destinatarios": [
+        "juane6462@gmail.com"
+    ],
+    "asunto_personalizado": "ALERTA: Pacientes En Curso No Finalizados",
+    "programacion": {
+        "frecuencia": "varias_veces",
+        "hora_unica": "08:00",
+        "horas": [
+            "08:00",
+            "13:00",
+            "18:00",
+            "19:26"
+        ],
+        "intervalo_horas": 4,
+        "dias_activos": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+        ],
+        "validar_horario": false
+    },
+    "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "username": "rihoticketsho@gmail.com",
+        "password": "vjmp vlpv zxip kblx",
+        "from_name": "Sistema de Gestión LIHO - Alertas Clínicas"
+    }
+}

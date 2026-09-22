@@ -1,0 +1,26 @@
+# Entornos y pruebas locales
+scratch/
+test/
+*.tmp
+*.bak
+
+# Logs y registros de ejecución
+logs/*.log
+*.log
+
+# Archivos del Sistema Operativo
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Archivos de Editores e IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de caché y temporales de servidor
+nbproject/
+.phpunit.result.cache

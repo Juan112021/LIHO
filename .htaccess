@@ -1,0 +1,13 @@
+# LIHO - Seguridad y Endurecimiento (Hernán Ocazionez y Cía S.A.S.)
+# Bloqueo de acceso directo a archivos de conexión y configuración sensibles
+
+<FilesMatch "^(conexion|security_crypto|config_smtp)\.php$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Bloquear acceso a carpeta config e includes si alguien intenta navegar directo
+RedirectMatch 403 ^/(config|includes)/.*$
+
+# Desactivar navegación de directorios
+Options -Indexes
