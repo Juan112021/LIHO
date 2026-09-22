@@ -5,7 +5,7 @@
 ![Database](https://img.shields.io/badge/Database-SQL%20Server-red?logo=microsoft-sql-server)
 ![Oracle Servinte](https://img.shields.io/badge/ERP-Servinte%20(Oracle)-orange?logo=oracle)
 ![Frontend](https://img.shields.io/badge/UI-Tailwind%20CSS-teal?logo=tailwindcss)
-![Version](https://img.shields.io/badge/Version-v1.1.0-success)
+![Version](https://img.shields.io/badge/Version-v1.1.1-success)
 ![Manual](https://img.shields.io/badge/Manual-Corporativo%20Interactivo-teal?logo=gitbook)
 ![Status](https://img.shields.io/badge/Status-Activo-emerald)
 

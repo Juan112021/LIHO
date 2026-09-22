@@ -142,38 +142,19 @@ if (isset($con) && $con !== false) {
     <!-- Content Area -->
     <main class="flex-grow max-w-[1380px] w-full mx-auto px-4 sm:px-6 py-8">
         
-        <!-- Welcome Banner con Efectos de Brillo Ambientales y Acceso al Manual -->
+        <!-- Welcome Banner con Efectos de Brillo Ambientales -->
         <div class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary via-[#1c486a] to-[#006a68] p-8 md:p-10 text-white shadow-xl mb-8 border border-white/10 transition-all duration-300 hover:shadow-2xl">
-            <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div class="max-w-2xl">
-                    <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-tertiary text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                        <span>Sesión Autenticada - <?php echo htmlspecialchars($userRole); ?></span>
-                    </div>
-                    <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-3">
-                        Bienvenido, <?php echo htmlspecialchars($userName); ?>
-                    </h1>
-                    <p class="text-slate-200 text-sm md:text-base leading-relaxed font-medium">
-                        Plataforma de Liquidación y Gestión de Honorarios Médicos IPS de <strong>Hernán Ocazionez y Cía S.A.S.</strong>
-                    </p>
+            <div class="relative z-10 max-w-3xl">
+                <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-tertiary text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Sesión Autenticada - <?php echo htmlspecialchars($userRole); ?></span>
                 </div>
-
-                <!-- Botón Corporativo Destacado al Manual de Usuario -->
-                <a href="manual_usuario.php" 
-                    title="Consultar Manual de Usuario y Guía Operativa"
-                    class="shrink-0 inline-flex items-center gap-3.5 p-4 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 hover:border-tertiary/70 shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 group">
-                    <div class="p-3 rounded-xl bg-gradient-to-tr from-tertiary to-emerald-400 text-primary shadow-md group-hover:rotate-6 transition-transform">
-                        <span class="material-symbols-outlined text-2xl font-bold">menu_book</span>
-                    </div>
-                    <div class="text-left">
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-black text-white group-hover:text-tertiary transition-colors">Manual de Usuario</span>
-                            <span class="text-[9px] font-mono font-extrabold px-1.5 py-0.5 rounded bg-tertiary/20 text-tertiary border border-tertiary/40">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span>
-                        </div>
-                        <p class="text-[11px] text-slate-300 font-medium">Guía operativa y reglas del sistema</p>
-                    </div>
-                    <span class="material-symbols-outlined text-base text-tertiary group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                </a>
+                <h1 class="text-3xl md:text-5xl font-black tracking-tight mb-3">
+                    Bienvenido, <?php echo htmlspecialchars($userName); ?>
+                </h1>
+                <p class="text-slate-200 text-sm md:text-base leading-relaxed max-w-2xl font-medium">
+                    Plataforma de Liquidación y Gestión de Honorarios Médicos IPS de <strong>Hernán Ocazionez y Cía S.A.S.</strong>
+                </p>
             </div>
             <!-- Círculo decorativo de fondo -->
             <div class="absolute -right-10 -bottom-10 w-96 h-96 bg-tertiary/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -220,16 +201,15 @@ if (isset($con) && $con !== false) {
                     <div class="flex items-center justify-between mb-4">
                         <span class="text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Estado Corte</span>
                         <div class="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 group-hover:text-white transition-colors duration-300">
-                            <span class="material-symbols-outlined text-2xl">pending_actions</span>
+                            <span class="material-symbols-outlined text-2xl">inventory_2</span>
                         </div>
                     </div>
-                    <div>
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 text-xs font-extrabold">
-                            <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                            <span>En Recopilación</span>
+                    <div class="flex items-baseline gap-2">
+                        <span class="inline-block px-2.5 py-1 rounded-full text-xs font-black bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                            En Recopilación
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-3 font-medium">Periodo mensual activo</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium">Periodo mensual activo</p>
                 </div>
 
                 <!-- Card 4: Productividad General -->
@@ -250,12 +230,20 @@ if (isset($con) && $con !== false) {
 
             <!-- Accesos Rápidos de Administración -->
             <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-200/80 dark:border-slate-800 shadow-sm mb-8">
-                <div class="flex items-center justify-between mb-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                     <div>
                         <h2 class="text-lg md:text-xl font-bold text-primary dark:text-white tracking-tight">Acciones Rápidas de Control</h2>
                         <p class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">Gestión directa de médicos, perfiles y estadísticas</p>
                     </div>
-                    <span class="text-xs font-bold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full border border-tertiary/20">Admin Control</span>
+                    <div class="flex items-center gap-2.5 self-start sm:self-auto">
+                        <a href="manual_usuario.php" 
+                            title="Consultar Manual de Usuario y Guía Operativa"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 active:scale-95 shadow-2xs">
+                            <span class="material-symbols-outlined text-base text-tertiary">menu_book</span>
+                            <span>Manual de Usuario</span>
+                        </a>
+                        <span class="text-xs font-bold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full border border-tertiary/20">Admin Control</span>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -5,6 +5,27 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.1] - 2026-09-21
+
+### 🔧 Mejoras y Refinamiento Visual
+- **Limpieza de Barra de Navegación**:
+  - Retiro del botón del manual de la barra superior para preservar la estética limpia y minimalista del header.
+- **Restauración del Hero Banner de Bienvenida**:
+  - Eliminación de la tarjeta interna en el banner principal del Dashboard, devolviéndole su formato limpio y equilibrado.
+- **Ubicación Integrada del Manual de Usuario**:
+  - Integración como módulo oficial dentro del Drawer offcanvas de **Módulos (`grid_view`)**.
+  - Acceso sutil como botón secundario en el encabezado de la sección de *Acciones Rápidas de Control*.
+  - Mantenimiento del acceso en el menú desplegable del avatar de usuario y en el pie de página.
+
+### 📂 Archivos Modificados
+- `config/version.php`
+- `includes/navbar.php`
+- `dashboard.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.1.0] - 2026-09-21
 
 ### 🚀 Novedades

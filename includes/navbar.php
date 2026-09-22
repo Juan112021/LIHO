@@ -1034,15 +1034,6 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                 </button>
                 <?php endif; ?>
 
-                <!-- Botón Destacado: Manual de Usuario Corporativo -->
-                <a href="manual_usuario.php" 
-                    title="Abrir Manual de Uso Oficial y Guía Operativa (v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?>)"
-                    class="whitespace-nowrap inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-emerald-500/15 via-teal-500/15 to-cyan-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 text-emerald-800 dark:text-tertiary border border-emerald-500/40 dark:border-tertiary/40 text-xs font-black shadow-sm transition-all duration-200 hover:scale-105 active:scale-95 shrink-0 group/manbtn">
-                    <span class="material-symbols-outlined text-base text-emerald-600 dark:text-tertiary group-hover/manbtn:rotate-6 transition-transform">menu_book</span>
-                    <span class="hidden md:inline">Manual</span>
-                    <span class="text-[9px] font-mono px-1.5 py-0.5 rounded-md bg-emerald-600/15 dark:bg-tertiary/20 text-emerald-800 dark:text-tertiary font-black border border-emerald-500/30">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span>
-                </a>
-
                 <!-- Botón Módulos (Estilo SaaS "Get Started" con micro-interacción) -->
                 <button type="button" id="openDrawerBtn" 
                     title="Abrir panel completo de todos los módulos"
@@ -1238,6 +1229,20 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                         </div>
                     </a>
                     <?php endif; ?>
+
+                    <!-- Manual de Usuario Corporativo -->
+                    <a href="manual_usuario.php" class="module-item flex items-start gap-3.5 p-3 rounded-2xl border border-teal-200/70 dark:border-teal-900/40 hover:border-tertiary/50 hover:bg-teal-50/40 dark:hover:bg-slate-800 transition-all duration-200 group">
+                        <div class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors shrink-0">
+                            <span class="material-symbols-outlined text-xl">menu_book</span>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <p class="text-xs font-black text-teal-700 dark:text-tertiary group-hover:text-teal-600 transition-colors">Manual de Usuario</p>
+                                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-tertiary/20 text-tertiary font-bold">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug mt-0.5">Guía operativa interactiva, políticas de liquidación y manual oficial.</p>
+                        </div>
+                    </a>
 
                 </div>
             </div>
