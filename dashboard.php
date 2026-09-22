@@ -236,11 +236,12 @@ if (isset($con) && $con !== false) {
                         <p class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">Gestión directa de médicos, perfiles y estadísticas</p>
                     </div>
                     <div class="flex items-center gap-2.5 self-start sm:self-auto">
-                        <a href="manual_usuario.php" 
-                            title="Consultar Manual de Usuario y Guía Operativa"
+                        <a href="manual_usuario.php" target="_blank" rel="noopener noreferrer"
+                            title="Consultar Manual de Usuario y Guía Operativa (abre en nueva pestaña)"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all hover:scale-105 active:scale-95 shadow-2xs">
                             <span class="material-symbols-outlined text-base text-tertiary">menu_book</span>
                             <span>Manual de Usuario</span>
+                            <span class="material-symbols-outlined text-xs text-slate-400">open_in_new</span>
                         </a>
                         <span class="text-xs font-bold text-tertiary bg-tertiary/10 px-3 py-1 rounded-full border border-tertiary/20">Admin Control</span>
                     </div>

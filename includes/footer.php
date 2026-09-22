@@ -7,9 +7,10 @@
             <span class="text-slate-300 dark:text-slate-700">|</span>
             <p>© <?php echo date('Y'); ?> Plataforma LIHO <span class="font-extrabold text-tertiary ml-0.5">v<?php echo defined('LIHO_VERSION') ? LIHO_VERSION : '1.1.0'; ?></span></p>
             <span class="text-slate-300 dark:text-slate-700">•</span>
-            <a href="manual_usuario.php" class="font-bold text-teal-600 dark:text-tertiary hover:underline flex items-center gap-1 transition-colors">
+            <a href="manual_usuario.php" target="_blank" rel="noopener noreferrer" class="font-bold text-teal-600 dark:text-tertiary hover:underline flex items-center gap-1 transition-colors">
                 <span class="material-symbols-outlined text-sm">menu_book</span>
                 <span>Manual de Uso</span>
+                <span class="material-symbols-outlined text-[10px] text-slate-400">open_in_new</span>
             </a>
         </div>
 

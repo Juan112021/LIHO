@@ -5,7 +5,7 @@
  */
 
 if (!defined('LIHO_VERSION')) {
-    define('LIHO_VERSION', '1.1.1');
+    define('LIHO_VERSION', '1.1.2');
 }
 
 if (!defined('LIHO_VERSION_DATE')) {
@@ -13,5 +13,5 @@ if (!defined('LIHO_VERSION_DATE')) {
 }
 
 if (!defined('LIHO_VERSION_NAME')) {
-    define('LIHO_VERSION_NAME', 'Refinamiento de UI y Reubicación Elegante del Manual');
+    define('LIHO_VERSION_NAME', 'Apertura Externa del Manual en Nueva Pestaña (target=_blank)');
 }

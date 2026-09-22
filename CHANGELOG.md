@@ -5,6 +5,23 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.2] - 2026-09-21
+
+### 🔧 Mejoras de Navegación
+- **Apertura en Nueva Pestaña (`target="_blank"`)**:
+  - Se configuraron todos los accesos al **Manual de Usuario** (Dashboard, Drawer de Módulos, Menú de Usuario y Footer) con `target="_blank"` y `rel="noopener noreferrer"`.
+  - Ahora el manual se abre en una pestaña independiente sin interrumpir la sesión o el flujo de trabajo activo en el sistema.
+
+### 📂 Archivos Modificados
+- `config/version.php`
+- `dashboard.php`
+- `includes/navbar.php`
+- `includes/footer.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.1.1] - 2026-09-21
 
 ### 🔧 Mejoras y Refinamiento Visual

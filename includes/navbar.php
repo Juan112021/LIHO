@@ -1093,9 +1093,12 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                                 <span class="material-symbols-outlined text-base text-slate-400">key</span>
                                 <span>Cambiar Contraseña</span>
                             </a>
-                            <a href="manual_usuario.php" class="flex items-center gap-2.5 px-4 py-2 text-xs text-teal-600 dark:text-tertiary font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800/80">
-                                <span class="material-symbols-outlined text-base text-teal-600 dark:text-tertiary">menu_book</span>
-                                <span>Manual de Usuario</span>
+                            <a href="manual_usuario.php" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between px-4 py-2 text-xs text-teal-600 dark:text-tertiary font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-t border-slate-100 dark:border-slate-800/80">
+                                <span class="flex items-center gap-2.5">
+                                    <span class="material-symbols-outlined text-base text-teal-600 dark:text-tertiary">menu_book</span>
+                                    <span>Manual de Usuario</span>
+                                </span>
+                                <span class="material-symbols-outlined text-xs text-slate-400">open_in_new</span>
                             </a>
                         </div>
 
@@ -1231,7 +1234,7 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                     <?php endif; ?>
 
                     <!-- Manual de Usuario Corporativo -->
-                    <a href="manual_usuario.php" class="module-item flex items-start gap-3.5 p-3 rounded-2xl border border-teal-200/70 dark:border-teal-900/40 hover:border-tertiary/50 hover:bg-teal-50/40 dark:hover:bg-slate-800 transition-all duration-200 group">
+                    <a href="manual_usuario.php" target="_blank" rel="noopener noreferrer" class="module-item flex items-start gap-3.5 p-3 rounded-2xl border border-teal-200/70 dark:border-teal-900/40 hover:border-tertiary/50 hover:bg-teal-50/40 dark:hover:bg-slate-800 transition-all duration-200 group">
                         <div class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors shrink-0">
                             <span class="material-symbols-outlined text-xl">menu_book</span>
                         </div>
