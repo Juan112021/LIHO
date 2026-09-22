@@ -3288,62 +3288,62 @@ usort($listaMedicos, function($a, $b) {
                 </div>
 
                 <!-- Contextual Alert Banner: Registros No Cruzados -->
-                <!-- Banner Advertencia de Registros No Cruzados (Alto Contraste y Legibilidad en Modo Claro y Oscuro) -->
-                <div id="liqBannerAdvertenciaNoCruzados" class="hidden bg-amber-50 dark:bg-[#20170a] border-2 border-amber-300 dark:border-amber-500/60 rounded-2xl p-4 text-amber-950 dark:text-amber-100 shadow-sm" data-purpose="audit-warning-banner">
+                <!-- Banner Advertencia de Registros No Cruzados (Tono Mate Opaco en Modo Claro, Confort Visual) -->
+                <div id="liqBannerAdvertenciaNoCruzados" class="hidden bg-[#fbf9f4] dark:bg-[#20170a] border border-[#dfd5c0] dark:border-amber-500/60 rounded-2xl p-4 text-[#4e3b1f] dark:text-amber-100 shadow-xs" data-purpose="audit-warning-banner">
                     <div class="flex items-start sm:items-center gap-3.5">
-                        <div class="p-2 bg-amber-200/80 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 rounded-xl shrink-0 border border-amber-300 dark:border-amber-500/40">
+                        <div class="p-2 bg-[#ece2cb] text-[#6e501a] dark:bg-amber-500/20 dark:text-amber-300 rounded-xl shrink-0 border border-[#d8c8a8] dark:border-amber-500/40">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
                                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round"></path>
                             </svg>
                         </div>
                         <div class="text-xs sm:text-sm">
-                            <span class="font-black text-amber-950 dark:text-amber-200">Atención: Incluye registros pendientes de conciliación.</span>
-                            <span class="text-amber-900 dark:text-amber-200/90 ml-1">
-                                La liquidación cuenta con <strong class="font-extrabold text-amber-950 dark:text-white underline decoration-amber-500 underline-offset-2"><span id="liqCountNoCruzadosDisplay">0</span> registro(s) no cruzado(s)</strong> por un subtotal de <strong class="font-mono font-black text-amber-950 dark:text-amber-300">$ <span id="liqValNoCruzadosDisplay">0</span> COP</strong>. Requiere revisión previa a cierre.
+                            <span class="font-black text-[#423219] dark:text-amber-200">Atención: Incluye registros pendientes de conciliación.</span>
+                            <span class="text-[#5e451b] dark:text-amber-200/90 ml-1">
+                                La liquidación cuenta con <strong class="font-extrabold text-[#3a2c16] dark:text-white underline decoration-[#b88c38] underline-offset-2"><span id="liqCountNoCruzadosDisplay">0</span> registro(s) no cruzado(s)</strong> por un subtotal de <strong class="font-mono font-black text-[#3a2c16] dark:text-amber-300">$ <span id="liqValNoCruzadosDisplay">0</span> COP</strong>. Requiere revisión previa a cierre.
                             </span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Banner Informativo Bonificación Tomografías (150.000 x cada 50) -->
-                <div id="liqBannerBonificacionTomo" class="hidden bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent dark:from-[#2a1d0d] dark:via-[#20170a] dark:to-[#16120b] border-2 border-amber-400/80 dark:border-amber-500/80 rounded-2xl p-4 text-amber-950 dark:text-amber-100 shadow-md">
+                <div id="liqBannerBonificacionTomo" class="hidden bg-gradient-to-r from-[#fbf8f1] via-[#f7f3e8] to-[#fbf8f1] dark:from-[#2a1d0d] dark:via-[#20170a] dark:to-[#16120b] border border-[#dfd5c0] dark:border-amber-500/80 rounded-2xl p-4 text-[#4e3b1f] dark:text-amber-100 shadow-xs">
                     <div class="flex items-start sm:items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
                         <div class="flex items-start gap-3.5">
-                            <div class="p-2.5 rounded-2xl bg-amber-500/20 dark:bg-amber-500/30 text-amber-700 dark:text-amber-300 shrink-0 border border-amber-400/40 shadow-xs">
+                            <div class="p-2.5 rounded-2xl bg-[#ece1c7] text-[#6e501a] dark:bg-amber-500/30 dark:text-amber-300 shrink-0 border border-[#d6c39f] shadow-xs">
                                 <span class="material-symbols-outlined text-3xl">military_tech</span>
                             </div>
                             <div class="space-y-1">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <h4 class="font-black text-amber-950 dark:text-white uppercase tracking-wider text-xs sm:text-sm font-outfit">BONIFICACIÓN DE PRODUCTIVIDAD EN TOMOGRAFÍAS</h4>
-                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-200 text-amber-950 dark:bg-amber-500/25 dark:text-amber-200 border border-amber-300 dark:border-amber-500/40 shadow-2xs">
-                                        <i class="fa-solid fa-gift mr-1 text-amber-600 dark:text-amber-400"></i>$150.000 COP por cada 50 Tomografías
+                                    <h4 class="font-black text-[#3a2c16] dark:text-white uppercase tracking-wider text-xs sm:text-sm font-outfit">BONIFICACIÓN DE PRODUCTIVIDAD EN TOMOGRAFÍAS</h4>
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#ebdfc6] text-[#523b16] dark:bg-amber-500/25 dark:text-amber-200 border border-[#cfbe9b] dark:border-amber-500/40 shadow-2xs">
+                                        <i class="fa-solid fa-gift mr-1 text-[#825c1b] dark:text-amber-400"></i>$150.000 COP por cada 50 Tomografías
                                     </span>
                                 </div>
-                                <p class="text-xs leading-relaxed text-amber-900 dark:text-amber-200/90">
-                                    Aplica para <strong class="text-amber-950 dark:text-amber-100 underline decoration-amber-400">todos los médicos de todas las entidades</strong>. Total de tomografías seleccionadas: <strong class="font-bold text-amber-950 dark:text-white font-mono" id="liqCantContrastadasDisplay">0</strong>.
+                                <p class="text-xs leading-relaxed text-[#5e451b] dark:text-amber-200/90">
+                                    Aplica para <strong class="text-[#3a2c16] dark:text-amber-100 underline decoration-[#b88c38]">todos los médicos de todas las entidades</strong>. Total de tomografías seleccionadas: <strong class="font-bold text-[#3a2c16] dark:text-white font-mono" id="liqCantContrastadasDisplay">0</strong>.
                                 </p>
                             </div>
                         </div>
-                        <div class="shrink-0 bg-white/80 dark:bg-black/30 p-2.5 px-4 rounded-xl border border-amber-300/80 dark:border-amber-500/40 text-right">
-                            <span class="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase block tracking-wider">Total Bonificaciones</span>
-                            <span class="text-lg sm:text-xl font-black text-amber-600 dark:text-amber-300 font-mono block">+$ <span id="liqValBonificacionTomoDisplay">0</span></span>
-                            <span class="text-[10px] font-semibold text-amber-700 dark:text-amber-400 block"><span id="liqCantBonificacionTomoDisplay">0</span> bono(s) de $150.000</span>
+                        <div class="shrink-0 bg-white/90 dark:bg-black/30 p-2.5 px-4 rounded-xl border border-[#dfd2ba] dark:border-amber-500/40 text-right">
+                            <span class="text-[10px] font-bold text-[#6e5124] dark:text-amber-300 uppercase block tracking-wider">Total Bonificaciones</span>
+                            <span class="text-lg sm:text-xl font-black text-[#8c5717] dark:text-amber-300 font-mono block">+$ <span id="liqValBonificacionTomoDisplay">0</span></span>
+                            <span class="text-[10px] font-semibold text-[#7d5722] dark:text-amber-400 block"><span id="liqCantBonificacionTomoDisplay">0</span> bono(s) de $150.000</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Banner Informativo Exámenes Excluidos -->
-                <div id="liqBannerExclusiones" class="hidden bg-amber-50 dark:bg-[#20170a] border border-amber-300 dark:border-amber-500/50 rounded-2xl p-4 text-amber-950 dark:text-amber-100 shadow-sm flex items-center justify-between gap-3">
+                <div id="liqBannerExclusiones" class="hidden bg-[#fbf9f4] dark:bg-[#20170a] border border-[#dfd5c0] dark:border-amber-500/50 rounded-2xl p-4 text-[#4e3b1f] dark:text-amber-100 shadow-xs flex items-center justify-between gap-3">
                     <div class="flex items-start gap-3">
-                        <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-2xl shrink-0 mt-0.5">do_not_disturb_on</span>
+                        <span class="material-symbols-outlined text-[#8a6021] dark:text-amber-400 text-2xl shrink-0 mt-0.5">do_not_disturb_on</span>
                         <div class="space-y-1">
-                            <p class="font-black text-amber-950 dark:text-amber-200 uppercase tracking-wider text-xs">EXÁMENES EXCLUIDOS DE ESTA LIQUIDACIÓN</p>
-                            <p class="text-xs leading-snug text-amber-900 dark:text-amber-200/90">
+                            <p class="font-black text-[#3a2c16] dark:text-amber-200 uppercase tracking-wider text-xs">EXÁMENES EXCLUIDOS DE ESTA LIQUIDACIÓN</p>
+                            <p class="text-xs leading-snug text-[#5e451b] dark:text-amber-200/90">
                                 Se han omitido <strong><span id="liqCountExcluidosDisplay">0</span> examen(es)</strong> con justificación obligatoria por valor de <strong>$ <span id="liqValExcluidosDisplay">0</span></strong>.
                             </p>
                         </div>
                     </div>
-                    <button type="button" onclick="verExclusionesLiquidacionPreview()" class="px-3 py-1.5 rounded-xl bg-amber-200 hover:bg-amber-300 text-amber-950 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:text-amber-200 font-bold text-xs border border-amber-300 dark:border-amber-500/40 transition-colors shrink-0 cursor-pointer shadow-xs">
+                    <button type="button" onclick="verExclusionesLiquidacionPreview()" class="px-3 py-1.5 rounded-xl bg-[#ece2cb] hover:bg-[#e2d5bd] text-[#4a3713] dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:text-amber-200 font-bold text-xs border border-[#d8c8a8] dark:border-amber-500/40 transition-colors shrink-0 cursor-pointer shadow-xs">
                         Ver listado
                     </button>
                 </div>
@@ -6242,12 +6242,12 @@ usort($listaMedicos, function($a, $b) {
                     let warningStrip = '';
                     if (sObj.noCruzadoCount > 0) {
                         warningStrip = `
-                            <div class="mb-2 px-2.5 py-1.5 rounded-lg bg-amber-500/15 dark:bg-amber-950/50 border border-amber-400/40 dark:border-amber-600/40 text-[11px] font-semibold text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2 shadow-2xs">
+                            <div class="mb-2 px-2.5 py-1.5 rounded-lg bg-[#f8f5ee] dark:bg-amber-950/50 border border-[#e4d9c4] dark:border-amber-600/40 text-[11px] font-semibold text-[#5c4217] dark:text-amber-200 flex items-center justify-between gap-2 shadow-2xs">
                                 <span class="flex items-center gap-1.5 truncate">
-                                    <span class="material-symbols-outlined text-sm text-amber-600 dark:text-amber-400 shrink-0">warning</span>
+                                    <span class="material-symbols-outlined text-sm text-[#8a6021] dark:text-amber-400 shrink-0">warning</span>
                                     <span>${sObj.noCruzadoCount} registro(s) no cruzado(s)</span>
                                 </span>
-                                <span class="font-mono font-bold text-amber-800 dark:text-amber-300 shrink-0">$${sObj.noCruzadoValor.toLocaleString('es-CO')}</span>
+                                <span class="font-mono font-bold text-[#7d5013] dark:text-amber-300 shrink-0">$${sObj.noCruzadoValor.toLocaleString('es-CO')}</span>
                             </div>
                         `;
                     }
@@ -6256,17 +6256,17 @@ usort($listaMedicos, function($a, $b) {
                     Object.values(sObj.conceptos).forEach(cObj => {
                         if (cObj.esBonificacion) {
                             conceptosRowsHtml += `
-                                <tr class="border-b border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30">
-                                    <td class="py-2 px-2 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                                <tr class="border-b border-[#e9dfcc] dark:border-amber-900/60 bg-[#faf6ee] dark:bg-amber-950/30">
+                                    <td class="py-2 px-2 text-[11px] font-bold text-[#4a3713] dark:text-amber-200">
                                         <div class="flex items-center gap-1.5 flex-wrap">
-                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-amber-200 text-amber-900 dark:bg-amber-900/90 dark:text-amber-100 shadow-xs">
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#ece2cb] text-[#4a3713] dark:bg-amber-900/90 dark:text-amber-100 border border-[#d8c8a8] dark:border-amber-700 shadow-xs">
                                                 <span class="material-symbols-outlined text-xs">military_tech</span> BONIFICACIÓN
                                             </span>
                                             <span class="truncate max-w-[280px]" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
                                         </div>
                                     </td>
-                                    <td class="py-2 px-2 text-right font-mono font-bold text-amber-800 dark:text-amber-300 text-[11px]">${cObj.cant} bono(s)</td>
-                                    <td class="py-2 px-2 text-right font-mono font-black text-amber-700 dark:text-amber-300 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
+                                    <td class="py-2 px-2 text-right font-mono font-bold text-[#5c4217] dark:text-amber-300 text-[11px]">${cObj.cant} bono(s)</td>
+                                    <td class="py-2 px-2 text-right font-mono font-black text-[#8c5717] dark:text-amber-300 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
                                 </tr>
                             `;
                             return;
@@ -6284,7 +6284,7 @@ usort($listaMedicos, function($a, $b) {
                             if (cObj.cruzadoCant === 0) {
                                 advertenciaConcepto = `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800 ml-1.5 shrink-0" title="Registro no cruzado en la conciliación (${tiposStr})"><span class="material-symbols-outlined text-[10px]">cancel</span> No Cruzado (${tiposStr})</span>`;
                             } else {
-                                advertenciaConcepto = `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800 ml-1.5 shrink-0" title="Incluye ${cObj.noCruzadoCant} registro(s) no cruzado(s) ($${cObj.noCruzadoValor.toLocaleString('es-CO')})"><span class="material-symbols-outlined text-[10px]">warning</span> ${cObj.noCruzadoCant} No Cruzado(s)</span>`;
+                                advertenciaConcepto = `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-[#f2ecdd] text-[#5e4418] dark:bg-amber-950 dark:text-amber-300 border border-[#ddd2bc] dark:border-amber-800 ml-1.5 shrink-0" title="Incluye ${cObj.noCruzadoCant} registro(s) no cruzado(s) ($${cObj.noCruzadoValor.toLocaleString('es-CO')})"><span class="material-symbols-outlined text-[10px]">warning</span> ${cObj.noCruzadoCant} No Cruzado(s)</span>`;
                             }
                         }
 
@@ -6303,12 +6303,12 @@ usort($listaMedicos, function($a, $b) {
                     });
 
                     const cardSedeHtml = `
-                        <div class="bg-white dark:bg-[#11192b]/90 border ${sObj.noCruzadoCount > 0 ? 'border-amber-300 dark:border-amber-500/40 hover:border-amber-400 dark:hover:border-amber-500/60' : 'border-slate-200 dark:border-[#1e2c47] hover:border-slate-300 dark:hover:border-slate-600'} rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-xs hover:shadow-md relative overflow-hidden">
-                            ${sObj.noCruzadoCount > 0 ? '<div class="absolute top-0 right-0 w-16 h-16 bg-amber-500/10 rounded-bl-full pointer-events-none"></div>' : ''}
+                        <div class="bg-white dark:bg-[#11192b]/90 border ${sObj.noCruzadoCount > 0 ? 'border-[#ddd3be] dark:border-amber-500/40 hover:border-[#cbbe9f] dark:hover:border-amber-500/60' : 'border-slate-200 dark:border-[#1e2c47] hover:border-slate-300 dark:hover:border-slate-600'} rounded-xl p-3.5 flex flex-col justify-between transition-all shadow-xs hover:shadow-md relative overflow-hidden">
+                            ${sObj.noCruzadoCount > 0 ? '<div class="absolute top-0 right-0 w-16 h-16 bg-[#b88c38]/10 rounded-bl-full pointer-events-none"></div>' : ''}
                             <div>
                                 <div class="flex items-center justify-between mb-2 cursor-pointer group" onclick="mostrarInformeExamenesSedePreview('${htmlspecialchars(sObj.nombre)}')">
                                     <span class="font-bold text-xs sm:text-[13px] text-slate-800 dark:text-slate-100 flex items-center gap-1.5 group-hover:text-teal-600 dark:group-hover:text-teal-300 transition-colors font-outfit truncate pr-2">
-                                        <span class="w-2.5 h-2.5 rounded-full shrink-0 ${sObj.noCruzadoCount > 0 ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]' : 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]'}"></span>
+                                        <span class="w-2.5 h-2.5 rounded-full shrink-0 ${sObj.noCruzadoCount > 0 ? 'bg-[#a6792c] dark:bg-amber-400' : 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]'}"></span>
                                         <span class="truncate">${htmlspecialchars(sObj.nombre)}</span>
                                     </span>
                                     <span class="text-[10px] text-teal-600 dark:text-teal-400 group-hover:underline font-extrabold flex items-center gap-1 shrink-0 bg-teal-50 dark:bg-teal-950/40 px-2 py-0.5 rounded-md border border-teal-200/60 dark:border-teal-800/60">
@@ -6334,7 +6334,7 @@ usort($listaMedicos, function($a, $b) {
                             </div>
                             <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-[#1c2a47] flex items-baseline justify-between text-xs font-bold text-slate-800 dark:text-slate-100">
                                 <span class="text-[11px] text-slate-500 dark:text-slate-400">Subtotal Sede:</span>
-                                <span class="text-sm sm:text-base font-bold ${sObj.noCruzadoCount > 0 ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400'} font-mono">$ ${sObj.totalValor.toLocaleString('es-CO')}</span>
+                                <span class="text-sm sm:text-base font-bold ${sObj.noCruzadoCount > 0 ? 'text-[#8c5717] dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400'} font-mono">$ ${sObj.totalValor.toLocaleString('es-CO')}</span>
                             </div>
                         </div>
                     `;
@@ -6350,7 +6350,7 @@ usort($listaMedicos, function($a, $b) {
                 const sObj = sedesMap[sKey];
                 let noCruzadoSedeTag = '';
                 if (sObj.noCruzadoCount > 0) {
-                    noCruzadoSedeTag = `<div class="text-[10px] text-amber-500 dark:text-amber-400 font-medium flex items-center gap-1 mt-0.5"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> ${sObj.noCruzadoCount} no cruzado(s)</div>`;
+                    noCruzadoSedeTag = `<div class="text-[10px] text-[#7d5013] dark:text-amber-400 font-medium flex items-center gap-1 mt-0.5"><span class="w-1.5 h-1.5 rounded-full bg-[#a6792c] dark:bg-amber-400"></span> ${sObj.noCruzadoCount} no cruzado(s)</div>`;
                 }
 
                 tbodyResumen.insertAdjacentHTML('beforeend', `
@@ -6390,7 +6390,7 @@ usort($listaMedicos, function($a, $b) {
 
                         let noCruzadoDocTag = '';
                         if (mObj.noCruzadosCant > 0) {
-                            noCruzadoDocTag = `<span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/35 font-semibold"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" fill-rule="evenodd"></path></svg> ${mObj.noCruzadosCant} No Cruzado</span>`;
+                            noCruzadoDocTag = `<span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#f2ecdd] text-[#7d5013] dark:text-amber-300 border border-[#ddd2bc] dark:border-amber-500/35 font-semibold"><svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" fill-rule="evenodd"></path></svg> ${mObj.noCruzadosCant} No Cruzado</span>`;
                         }
 
                         tbodyResumenMedicos.insertAdjacentHTML('beforeend', `

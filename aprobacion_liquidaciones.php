@@ -1520,8 +1520,8 @@ for ($i = 0; $i < 18; $i++) {
                         let warningBadgeHeader = '';
                         if (sNoCruzadoCount > 0) {
                             warningBadgeHeader = `
-                                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shrink-0" title="${sNoCruzadoCount} registro(s) no cruzado(s) incluidos en esta sede">
-                                    <span class="material-symbols-outlined text-xs text-amber-600 dark:text-amber-400">warning</span>
+                                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-[#f9f5ec] text-[#664b22] dark:bg-amber-950 dark:text-amber-300 border border-[#e5d9c2] dark:border-amber-700 flex items-center gap-1 shrink-0" title="${sNoCruzadoCount} registro(s) no cruzado(s) incluidos en esta sede">
+                                    <span class="material-symbols-outlined text-xs text-[#8a6021] dark:text-amber-400">warning</span>
                                     ${sNoCruzadoCount} NO CRUZADO(S) ($${sNoCruzadoValor.toLocaleString('es-CO')})
                                 </span>
                             `;
@@ -1532,16 +1532,16 @@ for ($i = 0; $i < 18; $i++) {
                         Object.values(conceptosMap).forEach(cObj => {
                             if (cObj.esBonificacion) {
                                 conceptosRowsHtml += `
-                                    <tr class="border-b border-amber-200/90 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 transition-colors">
-                                        <td class="py-2 px-2 text-[11px] font-bold text-amber-950 dark:text-amber-200">
+                                    <tr class="border-b border-[#e9dfcc] dark:border-amber-900/60 bg-[#faf6ee] dark:bg-amber-950/40 hover:bg-[#f3ede1] dark:hover:bg-amber-900/50 transition-colors">
+                                        <td class="py-2 px-2 text-[11px] font-bold text-[#4a3713] dark:text-amber-200">
                                             <div class="flex items-center flex-wrap gap-1.5">
-                                                <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">military_tech</span>
-                                                <span class="font-black tracking-tight text-amber-900 dark:text-amber-100" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
-                                                <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 border border-amber-300 dark:border-amber-700">INCENTIVO (50 CT)</span>
+                                                <span class="material-symbols-outlined text-[#8a6021] dark:text-amber-400 text-sm">military_tech</span>
+                                                <span class="font-black tracking-tight text-[#3a2c16] dark:text-amber-100" title="${htmlspecialchars(cObj.nombre)}">${htmlspecialchars(cObj.nombre)}</span>
+                                                <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-[#ece2cb] dark:bg-amber-900 text-[#4a3713] dark:text-amber-100 border border-[#d8c8a8] dark:border-amber-700">INCENTIVO (50 CT)</span>
                                             </div>
                                         </td>
-                                        <td class="py-2 px-2 text-right font-mono font-black text-amber-900 dark:text-amber-200 text-[11px]">${cObj.cant.toLocaleString('es-CO')} bono(s)</td>
-                                        <td class="py-2 px-2 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
+                                        <td class="py-2 px-2 text-right font-mono font-black text-[#5c4217] dark:text-amber-200 text-[11px]">${cObj.cant.toLocaleString('es-CO')} bono(s)</td>
+                                        <td class="py-2 px-2 text-right font-mono font-black text-[#8c5717] dark:text-amber-400 text-[11px]">+$ ${cObj.valor.toLocaleString('es-CO')}</td>
                                     </tr>
                                 `;
                                 return;
@@ -1634,13 +1634,13 @@ for ($i = 0; $i < 18; $i++) {
                 let warningBannerHtml = '';
                 if (globalNoCruzadosCount > 0) {
                     warningBannerHtml = `
-                        <div class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700/80 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
+                        <div class="p-3.5 rounded-2xl bg-[#fbf9f4] dark:bg-amber-950/50 border border-[#dfd5c0] dark:border-amber-700/80 text-[#4e3b1f] dark:text-amber-200 text-xs shadow-xs">
                             <div class="flex items-start gap-2.5">
-                                <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xl shrink-0 mt-0.5">warning</span>
+                                <span class="material-symbols-outlined text-[#8a6021] dark:text-amber-400 text-xl shrink-0 mt-0.5">warning</span>
                                 <div class="space-y-0.5">
-                                    <p class="font-extrabold text-amber-900 dark:text-amber-300 uppercase tracking-wider text-[11px]">ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS</p>
+                                    <p class="font-extrabold text-[#423219] dark:text-amber-300 uppercase tracking-wider text-[11px]">ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS</p>
                                     <p class="text-[11px] leading-snug opacity-95">
-                                        La liquidación total incluye <strong>${globalNoCruzadosCount} registro(s) no cruzado(s)</strong> por valor de <strong>$ ${globalNoCruzadosValor.toLocaleString('es-CO')}</strong>. Los ítems no cruzados han sido incluidos pero están señalizados con la insignia <span class="px-1 py-0.5 rounded bg-amber-200 dark:bg-amber-900/80 text-[10px] font-black"><i class="fa-solid fa-triangle-exclamation"></i> No Cruzado</span> en cada sede.
+                                        La liquidación total incluye <strong>${globalNoCruzadosCount} registro(s) no cruzado(s)</strong> por valor de <strong>$ ${globalNoCruzadosValor.toLocaleString('es-CO')}</strong>. Los ítems no cruzados han sido incluidos pero están señalizados con la insignia <span class="px-1 py-0.5 rounded bg-[#ece2cb] dark:bg-amber-900/80 text-[#4a3713] dark:text-amber-200 text-[10px] font-black border border-[#d8c8a8] dark:border-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> No Cruzado</span> en cada sede.
                                     </p>
                                 </div>
                             </div>
@@ -2177,10 +2177,10 @@ for ($i = 0; $i < 18; $i++) {
                 if (totalBonosTomografia > 0 || totalBonosTomografiaValor > 0) {
                     const sedesStr = sedesConBono.length > 0 ? sedesConBono.join(', ') : 'Principal';
                     bonoTomografiaBannerHtml = `
-                        <!-- Banner Destacado de Bonificación por Tomografías Contrastadas -->
-                        <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent border-2 border-amber-400/60 dark:border-amber-500/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 avoid-page-break">
+                        <!-- Banner Destacado de Bonificación por Tomografías Contrastadas (Tono Mate Opaco en Modo Claro) -->
+                        <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#fbf8f1] via-[#f7f3e8] to-[#fbf8f1] dark:from-[#2a1d0d] dark:via-[#20170a] dark:to-[#16120b] border border-[#dfd5c0] dark:border-amber-500/40 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 avoid-page-break">
                             <div class="flex items-center gap-3.5">
-                                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-2xl shadow-inner shrink-0 border border-amber-400/30">
+                                <div class="w-12 h-12 rounded-2xl bg-[#ece1c7] text-[#6e501a] dark:bg-amber-500/20 dark:text-amber-400 flex items-center justify-center font-bold text-2xl shadow-inner shrink-0 border border-[#d6c39f] dark:border-amber-400/30">
                                     <span class="material-symbols-outlined text-2xl">military_tech</span>
                                 </div>
                                 <div class="space-y-0.5">
@@ -2188,18 +2188,18 @@ for ($i = 0; $i < 18; $i++) {
                                         <h4 class="font-outfit font-black text-xs sm:text-sm text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                                             <span>Bonificación por Tomografías Contrastadas</span>
                                         </h4>
-                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#ebdfc6] text-[#523b16] dark:bg-amber-950 dark:text-amber-200 border border-[#cfbe9b] dark:border-amber-700">
                                             Regla Institucional: 50 CT × $150.000 COP
                                         </span>
                                     </div>
                                     <p class="text-[11px] text-slate-600 dark:text-slate-400 font-medium">
-                                        Concepto de incentivo reconocido al especialista: <strong class="text-amber-800 dark:text-amber-300 font-bold">${totalBonosTomografia} bono(s) alcanzado(s)</strong> en sede(s) <strong class="text-slate-800 dark:text-slate-200">${htmlspecialchars(sedesStr)}</strong>.
+                                        Concepto de incentivo reconocido al especialista: <strong class="text-[#7d5013] dark:text-amber-300 font-bold">${totalBonosTomografia} bono(s) alcanzado(s)</strong> en sede(s) <strong class="text-slate-800 dark:text-slate-200">${htmlspecialchars(sedesStr)}</strong>.
                                     </p>
                                 </div>
                             </div>
-                            <div class="text-left sm:text-right shrink-0 bg-white/70 dark:bg-slate-900/70 sm:bg-transparent px-3.5 py-2 rounded-xl sm:p-0 border sm:border-0 border-amber-300/40 dark:border-amber-700/40">
+                            <div class="text-left sm:text-right shrink-0 bg-white/90 dark:bg-slate-900/70 sm:bg-transparent px-3.5 py-2 rounded-xl sm:p-0 border sm:border-0 border-[#dfd2ba] dark:border-amber-700/40">
                                 <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Incentivo Reconocido</span>
-                                <span class="font-outfit font-black text-lg sm:text-xl text-amber-600 dark:text-amber-400">+$ ${totalBonosTomografiaValor.toLocaleString('es-CO')}</span>
+                                <span class="font-outfit font-black text-lg sm:text-xl text-[#8c5717] dark:text-amber-400">+$ ${totalBonosTomografiaValor.toLocaleString('es-CO')}</span>
                             </div>
                         </div>
                     `;

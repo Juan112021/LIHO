@@ -5,6 +5,31 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.4] - 2026-09-21
+
+### 🎨 Diseño y Experiencia de Usuario (UI/UX)
+- **Armonización Cromática: Tono Amarillo Mate y Opaco en Modo Claro (`examenes_medicos.php`, `aprobacion_liquidaciones.php`, `gestion_medicos_procedimientos.php`)**:
+  - **Reducción de Saturación y Fatiga Visual**: Se reemplazaron los tonos amarillos fluorescentes y de alta saturación (`border-2 border-amber-300`, `border-amber-400`, `bg-amber-200`, `text-amber-600`) que generaban estridencia visual en modo claro.
+  - **Paleta Mate y Confortable**: Se implementó una paleta equilibrada de tonos lino, arena cálida y bronce/ocre mate (`border-[#dfd5c0]`, `bg-[#fbf9f4]`, gradiente cálido `from-[#fbf8f1] to-[#f7f3e8]`, insignias `bg-[#ece2cb] text-[#4a3713]` y cifras en ocre profundo `text-[#8c5717]`).
+  - **Banners de Pre-Liquidación y Aprobación**:
+    - `#liqBannerAdvertenciaNoCruzados`: Fondo arena suave con borde mate de 1px y textos cálidos legibles sin brillo invasivo.
+    - `#liqBannerBonificacionTomo`: Gradiente pergamino atenuado, cápsula de regla institucional en biscuit cálido y total monetario en ocre mate de alto contraste.
+    - `#liqBannerExclusiones`: Botón y contenedor estilizados con textura mate no saturada.
+  - **Tarjetas y Detalle de Sedes**:
+    - Las tarjetas de sede con registros no cruzados ahora presentan un borde neutro cálido (`border-[#ddd3be]`), punto indicador ocre no incandescente (`bg-[#a6792c]`) y franja de alerta suave (`bg-[#f8f5ee] border-[#e4d9c4]`).
+    - Las filas de bonificación por productividad en tomografías lucen un fondo lino mate que armoniza con la tabla administrativa.
+  - **Modo Oscuro Preservado**: Se mantuvo intacta la armonía de alto contraste en modo oscuro (`dark:bg-[#20170a]`, `dark:border-amber-500/60`, `dark:text-amber-100`).
+
+### 📂 Archivos Modificados
+- `config/version.php`
+- `examenes_medicos.php`
+- `aprobacion_liquidaciones.php`
+- `gestion_medicos_procedimientos.php`
+- `README.md`
+- `CHANGELOG.md`
+
+---
+
 ## [1.1.3] - 2026-09-21
 
 ### 🚀 Novedades y Transparencia Financiera

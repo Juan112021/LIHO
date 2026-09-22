@@ -5,7 +5,7 @@
  */
 
 if (!defined('LIHO_VERSION')) {
-    define('LIHO_VERSION', '1.1.3');
+    define('LIHO_VERSION', '1.1.4');
 }
 
 if (!defined('LIHO_VERSION_DATE')) {
@@ -13,5 +13,5 @@ if (!defined('LIHO_VERSION_DATE')) {
 }
 
 if (!defined('LIHO_VERSION_NAME')) {
-    define('LIHO_VERSION_NAME', 'Desglose del Concepto de Bonificación por Tomografías en Liquidaciones');
+    define('LIHO_VERSION_NAME', 'Armonización Cromática: Amarillo Mate y Opaco en Modo Claro');
 }
