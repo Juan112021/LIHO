@@ -11,6 +11,10 @@ if (!defined('CONFIG_SISTEMA_FILE')) {
     define('CONFIG_SISTEMA_FILE', __DIR__ . '/../config/config_sistema.json');
 }
 
+if (!function_exists('obtenerConexionLIHO') && file_exists(__DIR__ . '/../config/conexion.php')) {
+    require_once __DIR__ . '/../config/conexion.php';
+}
+
 /**
  * Obtiene la configuración actual del sistema
  * @return array
@@ -89,6 +93,86 @@ function estanCorreosMedicosBloqueados() {
 }
 
 /**
+ * Retorna la lista de correos de administradores y personal institucional (Staff)
+ * @return array
+ */
+function obtenerCorreosAdminsYStaff() {
+    static $correosAdminsCache = null;
+    if ($correosAdminsCache !== null) {
+        return $correosAdminsCache;
+    }
+
+    $admins = [
+        'juane6462@gmail.com',
+        'coordinacionsistemas@hernanocazionez.com.co',
+        'coordinacionsistemas@hernanocazionez.com',
+        'dirasistencial@hernanocazionez.com',
+        'contabilidad2@hernanocazionez.com',
+        'rihoticketsho@gmail.com',
+        'soporte@hernando-ocazionez.com'
+    ];
+
+    $cfg = obtenerConfiguracionSistema();
+    $emailRedir = strtolower(trim($cfg['email_test_redireccion'] ?? ''));
+    if (!empty($emailRedir) && filter_var($emailRedir, FILTER_VALIDATE_EMAIL)) {
+        $admins[] = $emailRedir;
+    }
+
+    // Cargar dinámicamente desde SQL Server todos los usuarios con roles de Admin, Financiero u Observador (rol_id <> 3)
+    if (function_exists('obtenerConexionLIHO')) {
+        try {
+            $conLiho = obtenerConexionLIHO();
+            if ($conLiho) {
+                $sql = "SELECT LOWER(LTRIM(RTRIM(u.email))) as email
+                        FROM usuarios u
+                        LEFT JOIN roles r ON CAST(u.rol_id AS VARCHAR) = CAST(r.id AS VARCHAR)
+                        WHERE (u.rol_id IN ('0', '1', '2') 
+                           OR LOWER(r.nombre) IN ('admin', 'administrador', 'financiero', 'auxiliar', 'financiera', 'observador')
+                           OR (u.rol_id <> '3' AND u.id NOT IN (SELECT usuario_id FROM medicos WHERE usuario_id IS NOT NULL)))
+                          AND u.email IS NOT NULL";
+                $stmt = @sqlsrv_query($conLiho, $sql);
+                if ($stmt) {
+                    while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+                        $em = strtolower(trim($r['email'] ?? ''));
+                        if (filter_var($em, FILTER_VALIDATE_EMAIL)) {
+                            $admins[] = $em;
+                        }
+                    }
+                    @sqlsrv_free_stmt($stmt);
+                }
+            }
+        } catch (Exception $e) {}
+    }
+
+    $correosAdminsCache = array_values(array_unique(array_filter($admins)));
+    return $correosAdminsCache;
+}
+
+/**
+ * Verifica si una dirección de correo pertenece a un Administrador o personal interno (Staff)
+ * @param string $email
+ * @return bool
+ */
+function esCorreoDeAdminOStaff($email) {
+    $emailLimpio = strtolower(trim($email));
+    if (empty($emailLimpio) || !filter_var($emailLimpio, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $admins = obtenerCorreosAdminsYStaff();
+    if (in_array($emailLimpio, $admins, true)) {
+        return true;
+    }
+
+    // Correos institucionales de Hernán Ocazionez que no sean de médicos
+    if (str_ends_with($emailLimpio, '@hernanocazionez.com.co') || str_ends_with($emailLimpio, '@hernanocazionez.com')) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Retorna la lista de correos de médicos registrados en el sistema
  * @return array
  */
@@ -120,12 +204,19 @@ function obtenerCorreosMedicosRegistrados() {
         }
     }
 
-    // 2. Cargar desde BD SQL Server si hay conexión activa
+    // 2. Cargar desde BD SQL Server si hay conexión activa (únicamente médicos rol_id = 3 o tabla medicos)
     if (function_exists('obtenerConexionLIHO')) {
         try {
             $conLiho = obtenerConexionLIHO();
             if ($conLiho) {
-                $stmt = @sqlsrv_query($conLiho, "SELECT email FROM usuarios WHERE (rol_id = 3 OR rol_id = 4 OR LOWER(email) LIKE '%@%') AND email IS NOT NULL");
+                $sqlMed = "SELECT LOWER(LTRIM(RTRIM(u.email))) as email 
+                           FROM usuarios u 
+                           LEFT JOIN roles r ON CAST(u.rol_id AS VARCHAR) = CAST(r.id AS VARCHAR) 
+                           WHERE (u.rol_id = '3' 
+                              OR LOWER(r.nombre) IN ('medico', 'médico') 
+                              OR u.id IN (SELECT usuario_id FROM medicos WHERE usuario_id IS NOT NULL))
+                             AND u.email IS NOT NULL";
+                $stmt = @sqlsrv_query($conLiho, $sqlMed);
                 if ($stmt) {
                     while ($r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
                         $em = strtolower(trim($r['email'] ?? ''));
@@ -133,10 +224,16 @@ function obtenerCorreosMedicosRegistrados() {
                             $correos[$em] = true;
                         }
                     }
-                    sqlsrv_free_stmt($stmt);
+                    @sqlsrv_free_stmt($stmt);
                 }
             }
         } catch (Exception $e) {}
+    }
+
+    // Excluir de forma estricta cualquier correo de administradores o personal interno
+    $admins = obtenerCorreosAdminsYStaff();
+    foreach ($admins as $adminEmail) {
+        unset($correos[$adminEmail]);
     }
 
     $correosMedicosCache = array_keys($correos);
@@ -144,40 +241,53 @@ function obtenerCorreosMedicosRegistrados() {
 }
 
 /**
- * Verifica si una dirección de correo electrónico pertenece a un médico o tercero externo
+ * Verifica si una dirección de correo electrónico pertenece a un médico
  * @param string $email
  * @return bool
  */
 function esCorreoDeMedico($email) {
     $emailLimpio = strtolower(trim($email));
-    if (empty($emailLimpio)) return false;
-
-    // Correos de soporte/admin autorizados nunca se consideran médicos
-    $whitelistInterna = [
-        'juane6462@gmail.com',
-        'coordinacionsistemas@hernanocazionez.com.co',
-        'coordinacionsistemas@hernanocazionez.com',
-        'rihoticketsho@gmail.com',
-        'soporte@hernando-ocazionez.com'
-    ];
-
-    $cfg = obtenerConfiguracionSistema();
-    $emailRedir = strtolower(trim($cfg['email_test_redireccion'] ?? ''));
-    if (!empty($emailRedir)) {
-        $whitelistInterna[] = $emailRedir;
-    }
-
-    if (in_array($emailLimpio, $whitelistInterna, true)) {
+    if (empty($emailLimpio) || !filter_var($emailLimpio, FILTER_VALIDATE_EMAIL)) {
         return false;
     }
 
+    // 1. Si es Administrador o personal interno (Staff), NUNCA es médico
+    if (esCorreoDeAdminOStaff($emailLimpio)) {
+        return false;
+    }
+
+    // 2. Si está en la lista de médicos registrados
     $medicos = obtenerCorreosMedicosRegistrados();
     if (in_array($emailLimpio, $medicos, true)) {
         return true;
     }
 
-    // Si estamos en modo bloqueo de desarrollo y la dirección no es del personal interno, tratar como médico
-    return true;
+    // 3. Consulta de seguridad directa en BD si hay conexión
+    if (function_exists('obtenerConexionLIHO')) {
+        try {
+            $conLiho = obtenerConexionLIHO();
+            if ($conLiho) {
+                $sql = "SELECT TOP 1 u.id, u.rol_id, r.nombre as rol_nombre 
+                        FROM usuarios u 
+                        LEFT JOIN roles r ON CAST(u.rol_id AS VARCHAR) = CAST(r.id AS VARCHAR) 
+                        WHERE LOWER(RTRIM(LTRIM(u.email))) = LOWER(?)";
+                $stmt = @sqlsrv_query($conLiho, $sql, [$emailLimpio]);
+                if ($stmt && $row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+                    $rolId = (string)($row['rol_id'] ?? '');
+                    $rolNom = strtolower(trim($row['rol_nombre'] ?? ''));
+                    @sqlsrv_free_stmt($stmt);
+                    if ($rolId === '1' || $rolId === '2' || $rolId === '0' || in_array($rolNom, ['admin', 'administrador', 'financiero', 'observador'], true)) {
+                        return false;
+                    }
+                    if ($rolId === '3' || in_array($rolNom, ['medico', 'médico'], true)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception $e) {}
+    }
+
+    return false;
 }
 
 /**

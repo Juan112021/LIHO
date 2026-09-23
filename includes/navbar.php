@@ -94,9 +94,9 @@ $canSeeMedicos = $canAccessModule('medicos');
 $canSeeLiquidaciones = $canAccessModule('liquidaciones');
 
 // Detección de secciones activas para los dropdowns
-$isGestionActive = in_array($currentScript, ['examenes_medicos.php', 'gestion_medicos_procedimientos.php', 'medicos.php', 'maestro_entidades.php', 'alerta_medicos.php', 'aprobacion_liquidaciones.php', 'notas_ajuste.php', 'certificados_tributarios.php', 'examenes_excluidos.php']);
-$isTarifariosActive = in_array($currentScript, ['tarifario.php', 'tarifario_especial.php', 'tarifario_bloqueos.php', 'maestro_porcentajes.php', 'maestro_parafiscales.php', 'historial_tarifario.php']);
-$isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'logs.php', 'maestro_entidades.php']);
+$isGestionActive = in_array($currentScript, ['examenes_medicos.php', 'gestion_medicos_procedimientos.php', 'medicos.php', 'maestro_entidades.php', 'maestro_novedades.php', 'alerta_medicos.php', 'aprobacion_liquidaciones.php', 'notas_ajuste.php', 'certificados_tributarios.php', 'examenes_excluidos.php']);
+$isTarifariosActive = in_array($currentScript, ['tarifario.php', 'tarifario_especial.php', 'tarifario_bloqueos.php', 'maestro_porcentajes.php', 'maestro_parafiscales.php', 'historial_tarifario.php', 'maestro_novedades.php']);
+$isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'logs.php', 'maestro_entidades.php', 'maestro_novedades.php']);
 ?>
 <script>
     // Detección e inicialización inmediata del tema para evitar destellos (Anti-Flicker)
@@ -113,6 +113,13 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
 </script>
 
 <style>
+    /* Dimensionamiento de seguridad para el logo institucional */
+    #navLogoImg {
+        max-height: 40px !important;
+        width: auto !important;
+        object-fit: contain;
+    }
+
     /* Estilos de transición y animaciones suavizadas para mega-menús */
     .nav-dropdown-menu {
         opacity: 0;
@@ -261,6 +268,7 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                     <img id="navLogoImg" 
                         src="assets/img/Logo original.png" 
                         alt="Hernán Ocazionez Logo" 
+                        style="max-height: 40px; width: auto;"
                         class="h-8 sm:h-9 md:h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-105" />
                     <div class="hidden sm:flex flex-col border-l border-slate-200 dark:border-slate-800 pl-2.5 sm:pl-3">
                         <span class="text-xs sm:text-sm font-black text-primary dark:text-tertiary tracking-wider uppercase leading-none">LIHO</span>
@@ -331,6 +339,28 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                                             <?php endif; ?>
                                         </div>
                                         <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Empresas e IPS externas</p>
+                                    </div>
+                                </a>
+                                <?php endif; ?>
+
+                                <!-- 1.1 Maestro de Novedades (Por Entidad) -->
+                                <?php if ($canAccessModule('maestro_novedades') || $canAccessModule('maestro_entidades')): ?>
+                                <a href="maestro_novedades.php" 
+                                    class="nav-mega-card flex items-center gap-3 p-2.5 rounded-2xl group/item <?php echo ($currentScript === 'maestro_novedades.php') ? 'bg-amber-50/80 dark:bg-slate-800/90 border border-amber-500/30' : 'hover:bg-slate-100/70 dark:hover:bg-slate-800/60 border border-transparent'; ?>">
+                                    <div class="squircle-icon w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 shrink-0">
+                                        <span class="material-symbols-outlined text-xl">campaign</span>
+                                    </div>
+                                    <div class="overflow-hidden flex-1 min-w-0">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover/item:text-amber-600 dark:group-hover/item:text-amber-400 transition-colors flex items-center gap-1 truncate">
+                                                Maestro Novedades
+                                                <span class="material-symbols-outlined text-xs text-primary dark:text-tertiary item-hover-arrow">chevron_right</span>
+                                            </span>
+                                            <?php if ($currentScript === 'maestro_novedades.php'): ?>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Catálogo por entidad</p>
                                     </div>
                                 </a>
                                 <?php endif; ?>
@@ -882,6 +912,26 @@ $isAdminActive = in_array($currentScript, ['usuarios.php', 'logs_acceso.php', 'l
                                             <?php endif; ?>
                                         </div>
                                         <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Empresas e IPS externas</p>
+                                    </div>
+                                </a>
+
+                                <!-- 2.1 Maestro de Novedades -->
+                                <a href="maestro_novedades.php" 
+                                    class="nav-mega-card flex items-center gap-3 p-2.5 rounded-2xl group/item <?php echo ($currentScript === 'maestro_novedades.php') ? 'bg-amber-50/80 dark:bg-slate-800/90 border border-amber-500/30' : 'hover:bg-slate-100/70 dark:hover:bg-slate-800/60 border border-transparent'; ?>">
+                                    <div class="squircle-icon w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 shrink-0">
+                                        <span class="material-symbols-outlined text-xl">campaign</span>
+                                    </div>
+                                    <div class="overflow-hidden flex-1 min-w-0">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover/item:text-amber-600 dark:group-hover/item:text-amber-400 transition-colors flex items-center gap-1 truncate">
+                                                Maestro Novedades
+                                                <span class="material-symbols-outlined text-xs text-primary dark:text-tertiary item-hover-arrow">chevron_right</span>
+                                            </span>
+                                            <?php if ($currentScript === 'maestro_novedades.php'): ?>
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">Catálogo por entidad</p>
                                     </div>
                                 </a>
 

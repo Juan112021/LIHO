@@ -63,6 +63,10 @@ function asegurarTablasLiquidaciones() {
         BEGIN
             ALTER TABLE liquidaciones_turnos ADD ded_retencion_pct DECIMAL(5,2) DEFAULT 0;
         END;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'ded_solidaridad_pct')
+        BEGIN
+            ALTER TABLE liquidaciones_turnos ADD ded_solidaridad_pct DECIMAL(5,2) DEFAULT 0;
+        END;
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'resumen_sedes_json')
         BEGIN
             ALTER TABLE liquidaciones_turnos ADD resumen_sedes_json NVARCHAR(MAX) NULL;
@@ -82,6 +86,22 @@ function asegurarTablasLiquidaciones() {
         IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'entidad_nombre')
         BEGIN
             ALTER TABLE liquidaciones_turnos ADD entidad_nombre VARCHAR(200) NULL;
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'novedades_json')
+        BEGIN
+            ALTER TABLE liquidaciones_turnos ADD novedades_json NVARCHAR(MAX) NULL;
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'total_novedades_adicion')
+        BEGIN
+            ALTER TABLE liquidaciones_turnos ADD total_novedades_adicion DECIMAL(18,2) DEFAULT 0;
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'total_novedades_deduccion')
+        BEGIN
+            ALTER TABLE liquidaciones_turnos ADD total_novedades_deduccion DECIMAL(18,2) DEFAULT 0;
+        END;
+        IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_turnos') AND name = 'total_novedades_neto')
+        BEGIN
+            ALTER TABLE liquidaciones_turnos ADD total_novedades_neto DECIMAL(18,2) DEFAULT 0;
         END;
     END;";
     @sqlsrv_query($con, $sqlTableTurnos);
@@ -154,8 +174,59 @@ function asegurarTablasLiquidaciones() {
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_notas_ajuste') AND name = 'deducciones_ajuste')
     BEGIN
         ALTER TABLE liquidaciones_notas_ajuste ADD deducciones_ajuste DECIMAL(18,2) DEFAULT 0;
+    END;
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_notas_ajuste') AND name = 'novedades_json')
+    BEGIN
+        ALTER TABLE liquidaciones_notas_ajuste ADD novedades_json NVARCHAR(MAX) NULL;
+    END;
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('liquidaciones_notas_ajuste') AND name = 'total_novedades')
+    BEGIN
+        ALTER TABLE liquidaciones_notas_ajuste ADD total_novedades DECIMAL(18,2) DEFAULT 0;
     END;";
     @sqlsrv_query($con, $sqlTableNotas);
+
+    // 2.1 Maestro Oficial de Novedades por Entidad
+    $sqlTableMaestroNovedades = "
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'maestro_novedades')
+    BEGIN
+        CREATE TABLE maestro_novedades (
+            id INT IDENTITY(1,1) PRIMARY KEY,
+            entidad_id VARCHAR(50) NOT NULL,
+            codigo VARCHAR(50) NOT NULL,
+            nombre NVARCHAR(250) NOT NULL,
+            tipo VARCHAR(20) NOT NULL, -- 'ADICION' (+) o 'DEDUCCION' (-)
+            descripcion NVARCHAR(MAX) NULL,
+            valor_predeterminado DECIMAL(18,2) DEFAULT 0,
+            estado TINYINT DEFAULT 1,
+            fecha_creacion DATETIME DEFAULT GETDATE(),
+            fecha_actualizacion DATETIME DEFAULT GETDATE(),
+            usuario_id INT NULL,
+            usuario_nombre VARCHAR(150) NULL
+        );
+    END;";
+    @sqlsrv_query($con, $sqlTableMaestroNovedades);
+
+    // Semilla de novedades base para entidades existentes si no existen
+    $sqlSeedNovedades = "
+    IF EXISTS (SELECT * FROM sys.tables WHERE name = 'maestro_novedades')
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM maestro_novedades)
+        BEGIN
+            INSERT INTO maestro_novedades (entidad_id, codigo, nombre, tipo, descripcion, valor_predeterminado, estado, fecha_creacion, usuario_nombre)
+            VALUES 
+            ('4', 'NOV-BON-01', 'Bonificación Extraordinaria por Productividad', 'ADICION', 'Incentivo médico especial por cumplimiento de metas y volumen de lecturas', 0, 1, GETDATE(), 'SISTEMA'),
+            ('4', 'NOV-TUR-01', 'Reconocimiento Turno Festivo / Disponibilidad', 'ADICION', 'Pago complementario por turnos de fin de semana, festivos o coberturas imprevistas', 0, 1, GETDATE(), 'SISTEMA'),
+            ('4', 'NOV-AUX-01', 'Auxilio Especial de Movilidad / Transporte', 'ADICION', 'Auxilio no salarial para desplazamientos a sedes periféricas', 0, 1, GETDATE(), 'SISTEMA'),
+            ('4', 'NOV-DESC-01', 'Descuento por Daño o Pérdida de Equipo', 'DEDUCCION', 'Deducción acordada por reposición o arreglo de herramientas e instrumental médico', 0, 1, GETDATE(), 'SISTEMA'),
+            ('4', 'NOV-PRES-01', 'Cuota de Préstamo / Anticipo a Médicos', 'DEDUCCION', 'Descuento de cuota periódica pactada por anticipo o préstamo financiero', 0, 1, GETDATE(), 'SISTEMA'),
+            ('4', 'NOV-AJUS-01', 'Ajuste Administrativo de Período Anterior', 'DEDUCCION', 'Cobro por saldos pendientes o cruces erróneos de ciclos de facturación anteriores', 0, 1, GETDATE(), 'SISTEMA'),
+            ('1', 'NOV-IMAD-01', 'Bonificación por Cobertura IMADINSA', 'ADICION', 'Reconocimiento especial de productividad para lecturas de IMADINSA SAS', 0, 1, GETDATE(), 'SISTEMA'),
+            ('1', 'NOV-IMAD-02', 'Deducción Operativa IMADINSA', 'DEDUCCION', 'Descuento por conceptos operativos o de auditoría en IMADINSA SAS', 0, 1, GETDATE(), 'SISTEMA'),
+            ('PROPIO', 'NOV-GEN-01', 'Bonificación Extraordinaria', 'ADICION', 'Reconocimiento o adición a favor del profesional médico', 0, 1, GETDATE(), 'SISTEMA'),
+            ('PROPIO', 'NOV-GEN-02', 'Descuento Administrativo', 'DEDUCCION', 'Deducción o cobro justificado en contra del médico', 0, 1, GETDATE(), 'SISTEMA');
+        END;
+    END;";
+    @sqlsrv_query($con, $sqlSeedNovedades);
 
     // 3. Tabla Unificada de Auditoría y Logs del Sistema
     $sqlTableUnifiedLogs = "
@@ -243,7 +314,39 @@ function generarResumenSedesJSON($detalles) {
                     $conceptos[$grp]['cantidad'] += $cant;
                     $conceptos[$grp]['total'] += $v;
                 } elseif ($cruce === 'CRUZADO') {
-                    $grp = (strpos($nom, 'ECO') !== false || strpos($cups, 'ECO') !== false) ? 'ECOGRAFÍAS' : 'RXSI';
+                    $servUpper = strtoupper(trim($ex['servicio'] ?? ''));
+                    $conUpper  = strtoupper(trim($ex['concepto'] ?? ''));
+                    $ccUpper   = strtoupper(trim($ex['cuenta_contable'] ?? ''));
+                    $cleanCups = preg_replace('/[^0-9]/', '', $cups);
+
+                    if (!empty($servUpper)) {
+                        if ($servUpper === 'ECOGRAFÍAS' || $servUpper === 'ECOGRAFIA') {
+                            $grp = 'ECOGRAFIA';
+                        } else {
+                            $grp = $servUpper;
+                        }
+                    } elseif ($conUpper === 'RXES' || $ccUpper === '61251002' || strpos($nom, 'ESPECIAL') !== false || strpos($cups, 'ESPECIAL') !== false) {
+                        $grp = 'RX ESPECIALES';
+                    } elseif ($conUpper === 'DOPP' || strpos($nom, 'DOPP') !== false || strpos($cups, 'DOPP') !== false || substr($cleanCups, 0, 3) === '882') {
+                        $grp = 'DOPPLER';
+                    } elseif ($conUpper === 'ECOG' || strpos($nom, 'ECO') !== false || strpos($cups, 'ECO') !== false || strpos($nom, 'ULTRASO') !== false || strpos($cups, 'ULTRASO') !== false || substr($cleanCups, 0, 3) === '881') {
+                        $grp = 'ECOGRAFIA';
+                    } elseif ($conUpper === 'TOHO' || $ccUpper === '61251007' || strpos($nom, 'TOMO') !== false || strpos($cups, 'TOMO') !== false || strpos($nom, 'TAC') !== false || substr($cleanCups, 0, 3) === '879') {
+                        $grp = 'TOMOGRAFIA';
+                    } elseif ($conUpper === 'MAMO' || $ccUpper === '61251006' || strpos($nom, 'MAMO') !== false || strpos($cups, 'MAMO') !== false || strpos($nom, 'SENO') !== false || substr($cleanCups, 0, 4) === '8768') {
+                        $grp = 'MAMOGRAFIA';
+                    } elseif ($conUpper === 'BIOP' || strpos($nom, 'BIOP') !== false || strpos($nom, 'BIO') !== false || strpos($nom, 'BACAF') !== false) {
+                        $grp = 'BIOPSIAS';
+                    } elseif ($conUpper === 'BLOQ' || strpos($nom, 'BLOQUEO') !== false) {
+                        $grp = 'BLOQUEOS';
+                    } elseif ($conUpper === 'RESO' || strpos($nom, 'RESONAN') !== false || strpos($nom, 'RMN') !== false || substr($cleanCups, 0, 3) === '883') {
+                        $grp = 'RESONANCIAS';
+                    } elseif ($conUpper === 'RXSI' || $ccUpper === '61251001' || strpos($nom, 'RAYOS X') !== false || strpos($nom, 'RADIOGRAF') !== false || strpos($nom, 'RX') !== false || strpos($cups, 'RX') !== false) {
+                        $grp = 'RX SIMPLE';
+                    } else {
+                        $grp = !empty($conUpper) ? $conUpper : 'OTROS PROCEDIMIENTOS';
+                    }
+
                     if (!isset($conceptos[$grp])) {
                         $conceptos[$grp] = array('cantidad' => 0, 'total' => 0);
                     }
@@ -339,6 +442,7 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
     
     $totalFactura     = floatval($data['total_factura'] ?? 0);
     $dedAfc           = floatval($data['ded_afc'] ?? 0);
+    $dedSolidaridadPct = floatval($data['ded_solidaridad_pct'] ?? 0);
     $dedSolidaridad   = floatval($data['ded_solidaridad'] ?? 0);
     $dedIbc           = floatval($data['ded_ibc'] ?? 0);
     $dedSalud         = floatval($data['ded_salud'] ?? 0);
@@ -357,23 +461,31 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
     $entidadId     = strval($data['entidad_id'] ?? ($_SESSION['entidad_liquidacion_id'] ?? 'PROPIO'));
     $entidadNombre = strval($data['entidad_nombre'] ?? ($_SESSION['entidad_liquidacion_nombre'] ?? 'Hernán Ocazionez y Cía S.A.S.'));
 
+    $novedadesJson = is_string($data['novedades_json'] ?? '') ? $data['novedades_json'] : (is_array($data['novedades_json'] ?? null) ? json_encode($data['novedades_json'], JSON_UNESCAPED_UNICODE) : null);
+    $totalNovAdicion = floatval($data['total_novedades_adicion'] ?? 0);
+    $totalNovDeduccion = floatval($data['total_novedades_deduccion'] ?? 0);
+    $totalNovNeto = floatval($data['total_novedades_neto'] ?? ($totalNovAdicion - $totalNovDeduccion));
+
     $sqlInsert = "INSERT INTO liquidaciones_turnos (
         periodo_desde, periodo_hasta, medico_cedula, medico_nombre,
-        total_factura, ded_afc, ded_solidaridad, ded_ibc, ded_salud, ded_pension, ded_arl, ded_rete_383_info, ded_rete_383, ded_retencion_pct, ded_retencion,
+        total_factura, ded_afc, ded_solidaridad_pct, ded_solidaridad, ded_ibc, ded_salud, ded_pension, ded_arl, ded_rete_383_info, ded_rete_383, ded_retencion_pct, ded_retencion,
         total_deducciones, total_a_pagar, estado, fecha_creacion, usuario_creador_id, usuario_creador_nombre, detalles_json, resumen_sedes_json, exclusiones_json,
-        entidad_id, entidad_nombre
+        entidad_id, entidad_nombre,
+        novedades_json, total_novedades_adicion, total_novedades_deduccion, total_novedades_neto
     ) VALUES (
         ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, 'PENDIENTE', GETDATE(), ?, ?, ?, ?, ?,
-        ?, ?
+        ?, ?,
+        ?, ?, ?, ?
     ); SELECT SCOPE_IDENTITY() AS id;";
 
     $params = array(
         $periodoDesde, $periodoHasta, $medicoCedula, $medicoNombre,
-        $totalFactura, $dedAfc, $dedSolidaridad, $dedIbc, $dedSalud, $dedPension, $dedArl, $dedRete383Info, $dedRete383, $dedRetencionPct, $dedRetencion,
+        $totalFactura, $dedAfc, $dedSolidaridadPct, $dedSolidaridad, $dedIbc, $dedSalud, $dedPension, $dedArl, $dedRete383Info, $dedRete383, $dedRetencionPct, $dedRetencion,
         $totalDeducciones, $totalAPagar, $usuarioId, $usuarioNombre, $detallesJson, $resumenSedesJson, $exclusionesJson,
-        $entidadId, $entidadNombre
+        $entidadId, $entidadNombre,
+        $novedadesJson, $totalNovAdicion, $totalNovDeduccion, $totalNovNeto
     );
 
     $stmt = sqlsrv_query($con, $sqlInsert, $params);
@@ -441,6 +553,9 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
         $obsLog = 'Liquidación registrada y enviada a revisión';
         if ($cantExcluidos > 0) {
             $obsLog .= " ({$cantExcluidos} examen(es) excluido(s) con justificación por $" . number_format($totalExcluidosVal, 0, ',', '.') . ")";
+        }
+        if ($totalNovNeto != 0) {
+            $obsLog .= " [Novedades: " . ($totalNovNeto > 0 ? '+' : '') . "$" . number_format($totalNovNeto, 0, ',', '.') . " COP]";
         }
         registrarLogLiquidacionBD($newId, 'CREACIÓN', null, 'PENDIENTE', $usuarioId, $usuarioNombre, $usuarioRol, $obsLog);
 
@@ -671,8 +786,10 @@ function obtenerLiquidacionesBD($filtros = array()) {
 
     $whereStr = implode(' AND ', $where);
     $sql = "SELECT id, periodo_desde, periodo_hasta, medico_cedula, medico_nombre, total_factura,
+                   ded_solidaridad_pct, ded_solidaridad,
                    total_deducciones, total_a_pagar, estado, fecha_creacion, usuario_creador_nombre,
-                   usuario_aprobador_id, usuario_aprobador_nombre, fecha_aprobacion, hash_integridad
+                   usuario_aprobador_id, usuario_aprobador_nombre, fecha_aprobacion, hash_integridad,
+                   novedades_json, total_novedades_adicion, total_novedades_deduccion, total_novedades_neto
             FROM liquidaciones_turnos
             WHERE $whereStr
             ORDER BY id DESC";
@@ -729,11 +846,12 @@ function obtenerLiquidacionPorIdBD($id, $incluirDetallesCompletos = false) {
         $sql = "SELECT * FROM liquidaciones_turnos WHERE id = ?";
     } else {
         $sql = "SELECT id, periodo_desde, periodo_hasta, medico_cedula, medico_nombre, total_factura,
-                       ded_afc, ded_solidaridad, ded_ibc, ded_salud, ded_pension, ded_arl, ded_rete_383_info,
+                       ded_afc, ded_solidaridad_pct, ded_solidaridad, ded_ibc, ded_salud, ded_pension, ded_arl, ded_rete_383_info,
                        ded_rete_383, ded_retencion_pct, ded_retencion, total_deducciones, total_a_pagar,
                        estado, fecha_creacion, usuario_creador_id, usuario_creador_nombre,
                        usuario_aprobador_id, usuario_aprobador_nombre, fecha_aprobacion, hash_integridad,
-                       resumen_sedes_json, exclusiones_json, entidad_id, entidad_nombre
+                       resumen_sedes_json, exclusiones_json, entidad_id, entidad_nombre,
+                       novedades_json, total_novedades_adicion, total_novedades_deduccion, total_novedades_neto
                 FROM liquidaciones_turnos
                 WHERE id = ?";
     }
@@ -1334,6 +1452,17 @@ function obtenerExamenesSedeLiquidadorBD($idLiquidador, $sedeFiltro = '') {
                             if ($conRaw === 'CPAC' || $conRaw === 'CUMO' || $conRaw === 'DESC') {
                                 continue;
                             }
+                            $rawCant = (float)($r['CANTIDAD'] ?? 0);
+                            $rawTot  = (float)($r['TOTAL'] ?? 0);
+                            $codExa  = strtoupper(trim((string)($r['CODIGO_EXAMEN'] ?? '')));
+                            $codNum  = preg_replace('/[^0-9]/', '', $codExa);
+                            if ($rawCant > 1) {
+                                if ((!empty($codNum) && strval((int)$rawCant) === $codNum) || ($rawCant > 20 && preg_match('/^\d{5,7}$/', strval((int)$rawCant)))) {
+                                    $unitVal = ($rawCant > 0 && $rawTot > 0) ? ($rawTot / $rawCant) : $rawTot;
+                                    $r['CANTIDAD'] = 1;
+                                    $r['TOTAL']    = $unitVal;
+                                }
+                            }
                             $servinteItems[] = $r;
                         }
                     }
@@ -1500,25 +1629,31 @@ function guardarNotaAjusteBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
         $motivoAjuste .= " | [CORRECCIÓN % RETENCIÓN: Modificado de {$pctReteOrig}% a {$pctReteNuevo}%. Justificación: {$anotacionRete}]";
     }
 
-    // Si es tipo DEBITO y el valor viene positivo, lo convertimos a negativo para el delta contable
-    if ($tipoNota === 'DEBITO' && $valorAjuste > 0) {
+    // Asegurar coherencia contable del signo de valor_ajuste y tipo_nota
+    if ($valorAjuste < 0) {
+        $tipoNota = 'DEBITO';
+    } elseif ($tipoNota === 'DEBITO' && $valorAjuste > 0) {
         $valorAjuste = -$valorAjuste;
     }
 
-    $totalAjustado = $totalOriginal + $valorAjuste;
+    $totalAjustado = max(0, $totalOriginal + $valorAjuste);
 
     $subtotalBruto = floatval($data['subtotal_bruto'] ?? abs($valorAjuste));
     $deduccionesAjuste = floatval($data['deducciones_ajuste'] ?? 0);
+    $novedadesJson = is_string($data['novedades_json'] ?? '') ? $data['novedades_json'] : (is_array($data['novedades_json'] ?? null) ? json_encode($data['novedades_json'], JSON_UNESCAPED_UNICODE) : null);
+    $totalNovedades = floatval($data['total_novedades'] ?? 0);
 
     // Insertar la nota
     $sqlInsert = "INSERT INTO liquidaciones_notas_ajuste (
         numero_nota, liquidacion_id, medico_cedula, medico_nombre, periodo_desde, periodo_hasta,
         tipo_nota, motivo_ajuste, total_original, valor_ajuste, total_ajustado, detalles_ajuste_json,
         subtotal_bruto, deducciones_ajuste,
+        novedades_json, total_novedades,
         estado, fecha_creacion, usuario_creador_id, usuario_creador_nombre
     ) VALUES (
         'TEMP', ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
+        ?, ?,
         ?, ?,
         'PENDIENTE', GETDATE(), ?, ?
     ); SELECT SCOPE_IDENTITY() AS id;";
@@ -1527,6 +1662,7 @@ function guardarNotaAjusteBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
         $liquidacionId, $medicoCedula, $medicoNombre, $periodoDesde, $periodoHasta,
         $tipoNota, $motivoAjuste, $totalOriginal, $valorAjuste, $totalAjustado, $detallesJson,
         $subtotalBruto, $deduccionesAjuste,
+        $novedadesJson, $totalNovedades,
         $usuarioId, $usuarioNombre
     );
 
@@ -1803,11 +1939,12 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
     $correoMedicoPrueba = 'desarrollo@hernanocazionez.com';
     $correoDirMedica    = 'coordinacionsistemas@hernanocazionez.com.co';
     $correoCopiaDev     = 'juane6462@gmail.com';
+    $correoContabilidad = 'contabilidad2@hernanocazionez.com'; // Mary Luz Rios - Contabilidad
 
     // Durante fase de desarrollo/pruebas se utiliza el médico de prueba
     $correoMedico = obtenerEmailMedicoPorCedula($liq['medico_cedula']);
     $destinatarioPrincipal = (strtolower(trim($correoMedico ?? '')) === 'desarrollo@hernanocazionez.com') ? $correoMedico : $correoMedicoPrueba;
-    $copiasCC = array($correoDirMedica, $correoCopiaDev);
+    $copiasCC = array($correoDirMedica, $correoCopiaDev, $correoContabilidad);
 
     $logoPath = __DIR__ . '/../assets/img/logo_fondo_osc_hd.png';
     if (!file_exists($logoPath)) $logoPath = __DIR__ . '/../assets/img/Logo fondo oscuro.png';
@@ -1883,8 +2020,10 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
     }
 
     $solidaridad = floatval($liq['ded_solidaridad'] ?? 0);
+    $solPct = floatval($liq['ded_solidaridad_pct'] ?? 0);
     if ($solidaridad > 0) {
-        $dedList['Menos Fondo Solidaridad'] = -$solidaridad;
+        $lblSol = ($solPct > 0) ? "Menos Fondo Solidaridad ({$solPct}%)" : 'Menos Fondo Solidaridad';
+        $dedList[$lblSol] = -$solidaridad;
     }
 
     foreach ($dedList as $dNom => $dVal) {
@@ -2040,11 +2179,12 @@ function notificarNotaAjustePorCorreo($notaId, $tipoEvento = 'CREADA') {
     $correoMedicoPrueba = 'desarrollo@hernanocazionez.com';
     $correoDirMedica    = 'coordinacionsistemas@hernanocazionez.com.co';
     $correoCopiaDev     = 'juane6462@gmail.com';
+    $correoContabilidad = 'contabilidad2@hernanocazionez.com'; // Mary Luz Rios - Contabilidad
 
     // Durante fase de desarrollo/pruebas se utiliza el médico de prueba
     $correoMedico = obtenerEmailMedicoPorCedula($nota['medico_cedula']);
     $destinatarioPrincipal = (strtolower(trim($correoMedico ?? '')) === 'desarrollo@hernanocazionez.com') ? $correoMedico : $correoMedicoPrueba;
-    $copiasCC = array($correoDirMedica, $correoCopiaDev);
+    $copiasCC = array($correoDirMedica, $correoCopiaDev, $correoContabilidad);
 
     $logoPath = __DIR__ . '/../assets/img/logo_email_optimized.png';
     if (!file_exists($logoPath)) $logoPath = __DIR__ . '/../assets/img/hologo.png';
@@ -2445,4 +2585,235 @@ function obtenerCatalogoCupsBD($entidadId = null, $fechaExamen = null) {
 
     return $catalogo;
 }
+
+/**
+ * Obtiene el catálogo de novedades para una entidad específica o global
+ */
+function obtenerNovedadesEntidadBD($entidadId = null, $soloActivas = true) {
+    asegurarTablasLiquidaciones();
+    $con = obtenerConexionLIHO();
+    if ($con === false) return array();
+
+    $where = array();
+    $params = array();
+
+    if ($soloActivas) {
+        $where[] = "ISNULL(estado, 1) = 1";
+    }
+
+    if (!empty($entidadId) && $entidadId !== 'TODAS') {
+        $where[] = "(entidad_id = ? OR entidad_id = 'TODAS' OR entidad_id = 'PROPIO')";
+        $params[] = strval($entidadId);
+    }
+
+    $whereSql = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+    $sql = "SELECT id, entidad_id, codigo, nombre, tipo, descripcion, valor_predeterminado, estado, fecha_creacion, usuario_nombre 
+            FROM maestro_novedades 
+            {$whereSql} 
+            ORDER BY tipo ASC, nombre ASC";
+
+    $stmt = sqlsrv_query($con, $sql, $params);
+    $novedades = array();
+    if ($stmt !== false) {
+        while ($row = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC)) {
+            if ($row['fecha_creacion'] instanceof DateTime) {
+                $row['fecha_creacion'] = $row['fecha_creacion']->format('Y-m-d H:i:s');
+            }
+            $row['valor_predeterminado'] = floatval($row['valor_predeterminado'] ?? 0);
+            $novedades[] = $row;
+        }
+    }
+    return $novedades;
+}
+
+/**
+ * Registra en el log de auditoría el evento de activación / desactivación del checkbox de novedades
+ */
+function registrarLogToggleNovedades($modulo, $referenciaId, $entidadId, $medicoNombre, $usuarioId, $usuarioNombre, $usuarioRol, $activo = true) {
+    asegurarTablasLiquidaciones();
+    $accion = $activo ? 'ACTIVA_REGISTRO_NOVEDADES' : 'DESACTIVA_REGISTRO_NOVEDADES';
+    $referencia = (!empty($referenciaId) && $referenciaId !== '0') ? "{$modulo}-#{$referenciaId}" : "{$modulo}-EN-CURSO";
+    $obs = $activo 
+        ? "El usuario activó el selector '¿Registra novedades?' para {$modulo} (Médico: {$medicoNombre}, Entidad: {$entidadId})"
+        : "El usuario desactivó el selector '¿Registra novedades?' para {$modulo} (Médico: {$medicoNombre}, Entidad: {$entidadId})";
+
+    return registrarLogAuditoriaUniversal(
+        $modulo,
+        $referenciaId ?: 0,
+        $referencia,
+        $accion,
+        $activo ? 'SIN_NOVEDADES' : 'CON_NOVEDADES',
+        $activo ? 'CON_NOVEDADES' : 'SIN_NOVEDADES',
+        $usuarioId,
+        $usuarioNombre,
+        $usuarioRol,
+        $obs,
+        json_encode(array('modulo' => $modulo, 'referencia_id' => $referenciaId, 'entidad_id' => $entidadId, 'medico' => $medicoNombre, 'activo' => $activo), JSON_UNESCAPED_UNICODE),
+        'EXITOSO'
+    );
+}
+
+/**
+ * Registra una nueva novedad en el catálogo maestro y deja traza de auditoría
+ */
+function crearNovedadMaestroBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
+    asegurarTablasLiquidaciones();
+    $con = obtenerConexionLIHO();
+    if ($con === false) return array('success' => false, 'error' => 'Error de conexión con SQL Server.');
+
+    $entidadId   = trim($data['entidad_id'] ?? 'PROPIO');
+    $codigo      = strtoupper(trim($data['codigo'] ?? ''));
+    $nombre      = trim($data['nombre'] ?? '');
+    $tipo        = strtoupper(trim($data['tipo'] ?? 'ADICION'));
+    $descripcion = trim($data['descripcion'] ?? '');
+    $valorDef    = floatval($data['valor_predeterminado'] ?? 0);
+
+    if (empty($codigo) || empty($nombre)) {
+        return array('success' => false, 'error' => 'El código y el nombre de la novedad son obligatorios.');
+    }
+    if (!in_array($tipo, array('ADICION', 'DEDUCCION'))) {
+        $tipo = 'ADICION';
+    }
+
+    // Verificar si ya existe este código en esta entidad
+    $stmtChk = sqlsrv_query($con, "SELECT id FROM maestro_novedades WHERE entidad_id = ? AND codigo = ?", array($entidadId, $codigo));
+    if ($stmtChk !== false && sqlsrv_has_rows($stmtChk)) {
+        return array('success' => false, 'error' => "El código '{$codigo}' ya se encuentra registrado para esta entidad.");
+    }
+
+    $sql = "INSERT INTO maestro_novedades (
+                entidad_id, codigo, nombre, tipo, descripcion, valor_predeterminado, estado, fecha_creacion, fecha_actualizacion, usuario_id, usuario_nombre
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, 1, GETDATE(), GETDATE(), ?, ?
+            ); SELECT SCOPE_IDENTITY() AS new_id;";
+
+    $params = array($entidadId, $codigo, $nombre, $tipo, $descripcion, $valorDef, $usuarioId, $usuarioNombre);
+    $stmt = sqlsrv_query($con, $sql, $params);
+    if ($stmt === false) {
+        return array('success' => false, 'error' => 'Error al guardar la novedad: ' . print_r(sqlsrv_errors(), true));
+    }
+
+    sqlsrv_next_result($stmt);
+    $r = sqlsrv_fetch_array($stmt, SQLSRV_FETCH_ASSOC);
+    $newId = $r['new_id'] ?? 0;
+
+    // Registrar en auditoría
+    registrarLogAuditoriaUniversal(
+        'MAESTRO_NOVEDADES',
+        $newId,
+        $codigo,
+        'CREACION_NOVEDAD_MAESTRO',
+        'N/A',
+        "{$tipo}: {$nombre}",
+        $usuarioId,
+        $usuarioNombre,
+        $usuarioRol,
+        "Creación de novedad '{$nombre}' ({$codigo}) para entidad {$entidadId}. Tipo: {$tipo}, Valor default: $" . number_format($valorDef, 0, ',', '.'),
+        json_encode(array('id' => $newId, 'entidad_id' => $entidadId, 'codigo' => $codigo, 'nombre' => $nombre, 'tipo' => $tipo, 'valor_predeterminado' => $valorDef), JSON_UNESCAPED_UNICODE),
+        'EXITOSO'
+    );
+
+    return array('success' => true, 'id' => $newId, 'message' => 'Novedad registrada exitosamente.');
+}
+
+/**
+ * Actualiza una novedad existente en el catálogo maestro y deja log
+ */
+function editarNovedadMaestroBD($id, $data, $usuarioId, $usuarioNombre, $usuarioRol) {
+    asegurarTablasLiquidaciones();
+    $con = obtenerConexionLIHO();
+    if ($con === false) return array('success' => false, 'error' => 'Error de conexión con SQL Server.');
+
+    $stmtSel = sqlsrv_query($con, "SELECT * FROM maestro_novedades WHERE id = ?", array($id));
+    if ($stmtSel === false || !($ant = sqlsrv_fetch_array($stmtSel, SQLSRV_FETCH_ASSOC))) {
+        return array('success' => false, 'error' => 'Novedad no encontrada.');
+    }
+
+    $entidadId   = trim($data['entidad_id'] ?? $ant['entidad_id']);
+    $codigo      = strtoupper(trim($data['codigo'] ?? $ant['codigo']));
+    $nombre      = trim($data['nombre'] ?? $ant['nombre']);
+    $tipo        = strtoupper(trim($data['tipo'] ?? $ant['tipo']));
+    $descripcion = trim($data['descripcion'] ?? $ant['descripcion']);
+    $valorDef    = floatval($data['valor_predeterminado'] ?? $ant['valor_predeterminado']);
+
+    if (empty($codigo) || empty($nombre)) {
+        return array('success' => false, 'error' => 'El código y el nombre son obligatorios.');
+    }
+
+    // Verificar unicidad de código
+    $stmtChk = sqlsrv_query($con, "SELECT id FROM maestro_novedades WHERE entidad_id = ? AND codigo = ? AND id <> ?", array($entidadId, $codigo, $id));
+    if ($stmtChk !== false && sqlsrv_has_rows($stmtChk)) {
+        return array('success' => false, 'error' => "El código '{$codigo}' ya está en uso por otra novedad en esta entidad.");
+    }
+
+    $sql = "UPDATE maestro_novedades 
+            SET entidad_id = ?, codigo = ?, nombre = ?, tipo = ?, descripcion = ?, valor_predeterminado = ?, fecha_actualizacion = GETDATE(), usuario_id = ?, usuario_nombre = ?
+            WHERE id = ?";
+
+    $params = array($entidadId, $codigo, $nombre, $tipo, $descripcion, $valorDef, $usuarioId, $usuarioNombre, $id);
+    $stmt = sqlsrv_query($con, $sql, $params);
+    if ($stmt === false) {
+        return array('success' => false, 'error' => 'Error al actualizar la novedad: ' . print_r(sqlsrv_errors(), true));
+    }
+
+    // Registrar en auditoría
+    registrarLogAuditoriaUniversal(
+        'MAESTRO_NOVEDADES',
+        $id,
+        $codigo,
+        'EDICION_NOVEDAD_MAESTRO',
+        "{$ant['tipo']}: {$ant['nombre']}",
+        "{$tipo}: {$nombre}",
+        $usuarioId,
+        $usuarioNombre,
+        $usuarioRol,
+        "Actualización de concepto de novedad '{$nombre}' ({$codigo}) para entidad {$entidadId}.",
+        json_encode(array('id' => $id, 'anterior' => $ant, 'nuevo' => $data), JSON_UNESCAPED_UNICODE),
+        'EXITOSO'
+    );
+
+    return array('success' => true, 'message' => 'Novedad actualizada exitosamente.');
+}
+
+/**
+ * Cambia el estado (Activo/Inactivo) de una novedad y deja log
+ */
+function cambiarEstadoNovedadMaestroBD($id, $nuevoEstado, $usuarioId, $usuarioNombre, $usuarioRol) {
+    asegurarTablasLiquidaciones();
+    $con = obtenerConexionLIHO();
+    if ($con === false) return array('success' => false, 'error' => 'Error de conexión.');
+
+    $stmtSel = sqlsrv_query($con, "SELECT id, codigo, nombre, estado, entidad_id FROM maestro_novedades WHERE id = ?", array($id));
+    if ($stmtSel === false || !($ant = sqlsrv_fetch_array($stmtSel, SQLSRV_FETCH_ASSOC))) {
+        return array('success' => false, 'error' => 'Novedad no encontrada.');
+    }
+
+    $estadoVal = ($nuevoEstado == 1 || $nuevoEstado === '1' || $nuevoEstado === true) ? 1 : 0;
+    $sql = "UPDATE maestro_novedades SET estado = ?, fecha_actualizacion = GETDATE(), usuario_id = ?, usuario_nombre = ? WHERE id = ?";
+    $stmt = sqlsrv_query($con, $sql, array($estadoVal, $usuarioId, $usuarioNombre, $id));
+    if ($stmt === false) {
+        return array('success' => false, 'error' => 'Error al cambiar estado.');
+    }
+
+    $estadoAntStr = ($ant['estado'] == 1) ? 'ACTIVO' : 'INACTIVO';
+    $estadoNvoStr = ($estadoVal == 1) ? 'ACTIVO' : 'INACTIVO';
+
+    registrarLogAuditoriaUniversal(
+        'MAESTRO_NOVEDADES',
+        $id,
+        $ant['codigo'],
+        'CAMBIO_ESTADO_NOVEDAD_MAESTRO',
+        $estadoAntStr,
+        $estadoNvoStr,
+        $usuarioId,
+        $usuarioNombre,
+        $usuarioRol,
+        "Cambio de estado de novedad '{$ant['nombre']}' ({$ant['codigo']}) a {$estadoNvoStr}.",
+        null,
+        'EXITOSO'
+    );
+
+    return array('success' => true, 'message' => "Estado de la novedad cambiado a {$estadoNvoStr}.");
+}
+
 

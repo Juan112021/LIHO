@@ -122,7 +122,7 @@ function notificarActualizacionUsuario($usuarioId, $correoDestino, $nombreUsuari
     </body>
     </html>';
 
-    $enviado = enviarCorreoSMTP($correoDestino, $asunto, $cuerpo, null, $embeddedImages, '', array('coordinacionsistemas@hernanocazionez.com.co', 'juane6462@gmail.com'));
+    $enviado = enviarCorreoSMTP($correoDestino, $asunto, $cuerpo, null, $embeddedImages, '', array('coordinacionsistemas@hernanocazionez.com.co', 'juane6462@gmail.com', 'contabilidad2@hernanocazionez.com'));
     $estadoStr = $enviado ? 'EXITOSO' : 'FALLIDO';
 
     registrarLogCorreo($usuarioId, $correoDestino, $asunto, $motivo, $detallesTexto, $estadoStr);

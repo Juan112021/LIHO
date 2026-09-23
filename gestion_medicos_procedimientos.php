@@ -82,6 +82,29 @@ if ($action === 'guardar_liquidacion') {
     exit;
 }
 
+if ($action === 'obtener_novedades_entidad') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $entId = $_GET['entidad_id'] ?? ($entidadActivaId ?? 'PROPIO');
+    $novedades = obtenerNovedadesEntidadBD($entId, true);
+    echo json_encode(array('success' => true, 'data' => $novedades));
+    exit;
+}
+
+if ($action === 'registrar_log_toggle_novedades') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $refId  = $_GET['referencia_id'] ?? 'PRE-LIQ';
+    $entId  = $_GET['entidad_id'] ?? ($entidadActivaId ?? 'PROPIO');
+    $medico = $_GET['medico'] ?? 'MÉDICO';
+    $activo = isset($_GET['activo']) ? ($_GET['activo'] === '1' || $_GET['activo'] === 'true') : true;
+
+    $userNameVal = $_SESSION['user_name'] ?? 'Usuario';
+    registrarLogToggleNovedades('LIQUIDACION', $refId, $entId, $medico, $userId, $userNameVal, $userRole, $activo);
+    echo json_encode(array('success' => true));
+    exit;
+}
+
 if ($action === 'fetch_data' || $action === 'export_excel') {
     // Parámetros de filtro
     $fechaDesde   = $_GET['fecha_desde'] ?? ($_POST['fecha_desde'] ?? date('Y-m-d 00:00:00'));
@@ -311,7 +334,11 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 $secondPart = trim($parts[1] ?? '');
                 $secondTokens = preg_split('/\s+/', $secondPart, 2);
                 $sec = strtoupper(trim($secondTokens[0] ?? ''));
-                return preg_replace('/[^A-Z0-9]/', '', $sec);
+                $secClean = preg_replace('/[^A-Z0-9]/', '', $sec);
+                // Un código CUPS secundario debe contener dígitos y tener longitud estándar (4 a 7 caracteres)
+                if (preg_match('/^[A-Z]?\d{4,7}$/i', $secClean)) {
+                    return $secClean;
+                }
             }
             return '';
         };
@@ -476,7 +503,24 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                                     $codClean   = preg_replace('/[^A-Z0-9]/', '', $codExa);
                                     $nomExa     = strtoupper(trim($r['EXAMEN'] ?? ''));
                                     $nomTokens  = preg_split('/\s+/', $nomExa, 2);
-                                    $exaSecCode = preg_replace('/[^A-Z0-9]/', '', $nomTokens[0] ?? '');
+                                    $firstToken = preg_replace('/[^A-Z0-9]/', '', $nomTokens[0] ?? '');
+                                    $exaSecCode = preg_match('/^[A-Z]?\d{4,7}$/i', $firstToken) ? $firstToken : '';
+
+                                    $rawCant = (float)($r['CANTIDAD'] ?? 0);
+                                    $rawTot  = (float)($r['TOTAL'] ?? 0);
+                                    $anomaliaCant = false;
+
+                                    // Corrección automática de error de digitación en Servinte:
+                                    // El facturador en Servinte digitó por error el código CUPS en el campo de cantidad (ej. cardetcan = 881401)
+                                    $codNum = preg_replace('/[^0-9]/', '', $codExa);
+                                    if ($rawCant > 1) {
+                                        if ((!empty($codNum) && strval((int)$rawCant) === $codNum) || ($rawCant > 20 && preg_match('/^\d{5,7}$/', strval((int)$rawCant)))) {
+                                            $unitVal = ($rawCant > 0 && $rawTot > 0) ? ($rawTot / $rawCant) : $rawTot;
+                                            $rawCant = 1;
+                                            $rawTot  = $unitVal;
+                                            $anomaliaCant = true;
+                                        }
+                                    }
 
                                     $sItemData = [
                                         'sede'          => $r['SEDE'] ?? '',
@@ -493,8 +537,9 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                                         'cod_clean'     => $codClean,
                                         'examen_sec'    => $exaSecCode,
                                         'examen'        => $r['EXAMEN'] ?? '',
-                                        'cantidad'      => (float)($r['CANTIDAD'] ?? 0),
-                                        'total'         => (float)($r['TOTAL'] ?? 0),
+                                        'cantidad'      => $rawCant,
+                                        'total'         => $rawTot,
+                                        'anomalia_cant' => $anomaliaCant,
                                         'matched'       => false
                                     ];
 
@@ -529,6 +574,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         $medicosDeglucionesMap = [];
         $medicosParafiscalesMap = [];
         $medicosPensionadosMap = [];
+        $medicosArlMap = [];
         $porcentajesPagoMap = [
             'TARIFAS_ESPECIALES' => 30.0,
             'DEGLUCIONES'        => 45.0
@@ -591,23 +637,31 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 }
             }
 
-            // 2. Tarifario General Estándar con Concepto de Facturación (Prioriza entidad activa si existe, con fallback a Hernán Ocazionez)
-            $cupsConceptoMap = [];
+            // 2. Tarifario General Estándar con Concepto de Facturación y Tipos (Prioriza entidad activa si existe, con fallback a Hernán Ocazionez)
+            $cupsConceptoMap       = [];
+            $cupsServicioMap       = [];
+            $cupsCuentaContableMap = [];
+            $cupsNombreCuentaMap   = [];
+            $tacContrastadasMap    = [];
+            $tacSimpleMap          = [];
             // Cargar base de Hernán Ocazionez (entidad_id IS NULL OR 0)
-            $sqlT = "SELECT codigo, ISNULL(tipo_paciente, 'E') AS tipo_paciente, ISNULL(columna1, valor_und) AS valor_und, ISNULL(concepto, '') AS concepto, ISNULL(servicio, '') AS servicio, ISNULL(pagar_por_cantidad, 1) AS pagar_por_cantidad, ISNULL(base_calculo, 'VALOR_LIQUIDACION') AS base_calculo 
+            $sqlT = "SELECT codigo, ISNULL(tipo_paciente, 'E') AS tipo_paciente, ISNULL(columna1, valor_und) AS valor_und, ISNULL(concepto, '') AS concepto, ISNULL(servicio, '') AS servicio, ISNULL(tipo, '') AS tipo, ISNULL(cuenta_contable, '') AS cuenta_contable, ISNULL(nombre_cuenta, '') AS nombre_cuenta, ISNULL(pagar_por_cantidad, 1) AS pagar_por_cantidad, ISNULL(base_calculo, 'VALOR_LIQUIDACION') AS base_calculo 
                      FROM dbo.tarifario 
                      WHERE ISNULL(estado, 1) = 1 AND (entidad_id IS NULL OR entidad_id = 0)";
             $stmtT = sqlsrv_query($connLIHO, $sqlT);
             if ($stmtT !== false) {
                 while ($rT = sqlsrv_fetch_array($stmtT, SQLSRV_FETCH_ASSOC)) {
-                    $codRaw  = strtoupper(trim((string)($rT['codigo'] ?? '')));
-                    $tipoPac = strtoupper(trim((string)($rT['tipo_paciente'] ?? 'E')));
+                    $codRaw       = strtoupper(trim((string)($rT['codigo'] ?? '')));
+                    $tipoPac      = strtoupper(trim((string)($rT['tipo_paciente'] ?? 'E')));
                     if ($tipoPac !== 'P') $tipoPac = 'E';
-                    $valUnd  = (float)($rT['valor_und'] ?? 0);
-                    $conVal  = strtoupper(trim((string)($rT['concepto'] ?? '')));
-                    $serVal  = strtoupper(trim((string)($rT['servicio'] ?? '')));
-                    $pagarCant = (int)($rT['pagar_por_cantidad'] ?? 1);
-                    $baseCalc  = strtoupper(trim((string)($rT['base_calculo'] ?? 'VALOR_LIQUIDACION')));
+                    $valUnd       = (float)($rT['valor_und'] ?? 0);
+                    $conVal       = strtoupper(trim((string)($rT['concepto'] ?? '')));
+                    $serVal       = strtoupper(trim((string)($rT['servicio'] ?? '')));
+                    $tipoVal      = strtoupper(trim((string)($rT['tipo'] ?? '')));
+                    $cuentaVal    = strtoupper(trim((string)($rT['cuenta_contable'] ?? '')));
+                    $nomCuentaVal = strtoupper(trim((string)($rT['nombre_cuenta'] ?? '')));
+                    $pagarCant    = (int)($rT['pagar_por_cantidad'] ?? 1);
+                    $baseCalc     = strtoupper(trim((string)($rT['base_calculo'] ?? 'VALOR_LIQUIDACION')));
                     if (!empty($codRaw)) {
                         $cleanCod = preg_replace('/[^A-Z0-9]/', '', $codRaw);
                         $keyWithTipo = $cleanCod . '_' . $tipoPac;
@@ -621,6 +675,32 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                         } elseif (!empty($serVal)) {
                             $cupsConceptoMap[$cleanCod] = $serVal;
                         }
+
+                        $servicioFinal = !empty($serVal) ? $serVal : (!empty($tipoVal) ? $tipoVal : '');
+                        if (empty($servicioFinal) && !empty($conVal)) {
+                            if ($conVal === 'RXES') $servicioFinal = 'RX ESPECIALES';
+                            elseif ($conVal === 'RXSI') $servicioFinal = 'RX SIMPLE';
+                            elseif ($conVal === 'ECOG') $servicioFinal = 'ECOGRAFÍAS';
+                            elseif ($conVal === 'TOHO') $servicioFinal = 'TOMOGRAFÍAS';
+                            elseif ($conVal === 'MAMO') $servicioFinal = 'MAMOGRAFÍAS';
+                            elseif ($conVal === 'DOPP') $servicioFinal = 'DOPPLER';
+                            elseif ($conVal === 'BIOP') $servicioFinal = 'BIOPSIAS';
+                        }
+                        if (!empty($servicioFinal)) {
+                            $cupsServicioMap[$cleanCod] = $servicioFinal;
+                        }
+                        if (!empty($cuentaVal)) {
+                            $cupsCuentaContableMap[$cleanCod] = $cuentaVal;
+                        }
+                        if (!empty($nomCuentaVal)) {
+                            $cupsNombreCuentaMap[$cleanCod] = $nomCuentaVal;
+                        }
+
+                        if ($tipoVal === 'TAC CONTRASTADA' || strpos($tipoVal, 'CONTRAST') !== false) {
+                            $tacContrastadasMap[$cleanCod] = true;
+                        } elseif ($tipoVal === 'TAC SIMPLE') {
+                            $tacSimpleMap[$cleanCod] = true;
+                        }
                     }
                 }
             }
@@ -628,20 +708,23 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
             // Si la entidad activa es externa (ej. IMADINSA SAS), sobreescribir/agregar con su tarifario específico
             $entidadActivaId = $entActivaSesion ?? 'PROPIO';
             if (!empty($entidadActivaId) && $entidadActivaId !== 'PROPIO' && (int)$entidadActivaId > 0) {
-                $sqlTEnt = "SELECT codigo, ISNULL(tipo_paciente, 'E') AS tipo_paciente, ISNULL(columna1, valor_und) AS valor_und, ISNULL(concepto, '') AS concepto, ISNULL(servicio, '') AS servicio, ISNULL(pagar_por_cantidad, 1) AS pagar_por_cantidad, ISNULL(base_calculo, 'VALOR_LIQUIDACION') AS base_calculo 
+                $sqlTEnt = "SELECT codigo, ISNULL(tipo_paciente, 'E') AS tipo_paciente, ISNULL(columna1, valor_und) AS valor_und, ISNULL(concepto, '') AS concepto, ISNULL(servicio, '') AS servicio, ISNULL(tipo, '') AS tipo, ISNULL(cuenta_contable, '') AS cuenta_contable, ISNULL(nombre_cuenta, '') AS nombre_cuenta, ISNULL(pagar_por_cantidad, 1) AS pagar_por_cantidad, ISNULL(base_calculo, 'VALOR_LIQUIDACION') AS base_calculo 
                             FROM dbo.tarifario 
                             WHERE ISNULL(estado, 1) = 1 AND entidad_id = ?";
                 $stmtTEnt = sqlsrv_query($connLIHO, $sqlTEnt, [(int)$entidadActivaId]);
                 if ($stmtTEnt !== false) {
                     while ($rT = sqlsrv_fetch_array($stmtTEnt, SQLSRV_FETCH_ASSOC)) {
-                        $codRaw  = strtoupper(trim((string)($rT['codigo'] ?? '')));
-                        $tipoPac = strtoupper(trim((string)($rT['tipo_paciente'] ?? 'E')));
+                        $codRaw       = strtoupper(trim((string)($rT['codigo'] ?? '')));
+                        $tipoPac      = strtoupper(trim((string)($rT['tipo_paciente'] ?? 'E')));
                         if ($tipoPac !== 'P') $tipoPac = 'E';
-                        $valUnd  = (float)($rT['valor_und'] ?? 0);
-                        $conVal  = strtoupper(trim((string)($rT['concepto'] ?? '')));
-                        $serVal  = strtoupper(trim((string)($rT['servicio'] ?? '')));
-                        $pagarCant = (int)($rT['pagar_por_cantidad'] ?? 1);
-                        $baseCalc  = strtoupper(trim((string)($rT['base_calculo'] ?? 'VALOR_LIQUIDACION')));
+                        $valUnd       = (float)($rT['valor_und'] ?? 0);
+                        $conVal       = strtoupper(trim((string)($rT['concepto'] ?? '')));
+                        $serVal       = strtoupper(trim((string)($rT['servicio'] ?? '')));
+                        $tipoVal      = strtoupper(trim((string)($rT['tipo'] ?? '')));
+                        $cuentaVal    = strtoupper(trim((string)($rT['cuenta_contable'] ?? '')));
+                        $nomCuentaVal = strtoupper(trim((string)($rT['nombre_cuenta'] ?? '')));
+                        $pagarCant    = (int)($rT['pagar_por_cantidad'] ?? 1);
+                        $baseCalc     = strtoupper(trim((string)($rT['base_calculo'] ?? 'VALOR_LIQUIDACION')));
                         if (!empty($codRaw)) {
                             $cleanCod = preg_replace('/[^A-Z0-9]/', '', $codRaw);
                             $keyWithTipo = $cleanCod . '_' . $tipoPac;
@@ -654,6 +737,32 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                                 $cupsConceptoMap[$cleanCod] = $conVal;
                             } elseif (!empty($serVal)) {
                                 $cupsConceptoMap[$cleanCod] = $serVal;
+                            }
+
+                            $servicioFinal = !empty($serVal) ? $serVal : (!empty($tipoVal) ? $tipoVal : '');
+                            if (empty($servicioFinal) && !empty($conVal)) {
+                                if ($conVal === 'RXES') $servicioFinal = 'RX ESPECIALES';
+                                elseif ($conVal === 'RXSI') $servicioFinal = 'RX SIMPLE';
+                                elseif ($conVal === 'ECOG') $servicioFinal = 'ECOGRAFÍAS';
+                                elseif ($conVal === 'TOHO') $servicioFinal = 'TOMOGRAFÍAS';
+                                elseif ($conVal === 'MAMO') $servicioFinal = 'MAMOGRAFÍAS';
+                                elseif ($conVal === 'DOPP') $servicioFinal = 'DOPPLER';
+                                elseif ($conVal === 'BIOP') $servicioFinal = 'BIOPSIAS';
+                            }
+                            if (!empty($servicioFinal)) {
+                                $cupsServicioMap[$cleanCod] = $servicioFinal;
+                            }
+                            if (!empty($cuentaVal)) {
+                                $cupsCuentaContableMap[$cleanCod] = $cuentaVal;
+                            }
+                            if (!empty($nomCuentaVal)) {
+                                $cupsNombreCuentaMap[$cleanCod] = $nomCuentaVal;
+                            }
+
+                            if ($tipoVal === 'TAC CONTRASTADA' || strpos($tipoVal, 'CONTRAST') !== false) {
+                                $tacContrastadasMap[$cleanCod] = true;
+                            } elseif ($tipoVal === 'TAC SIMPLE') {
+                                $tacSimpleMap[$cleanCod] = true;
                             }
                         }
                     }
@@ -727,6 +836,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                                  ISNULL(m.degluciones, ISNULL(u.degluciones, 0)) AS degluciones,
                                  ISNULL(m.parafiscales, ISNULL(u.parafiscales, 0)) AS parafiscales,
                                  ISNULL(m.pensionado, ISNULL(u.pensionado, 0)) AS pensionado,
+                                 ISNULL(m.arl, ISNULL(u.arl, 0)) AS arl,
                                  ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales
                           FROM dbo.medicos m 
                           LEFT JOIN dbo.usuarios u ON m.usuario_id = u.id";
@@ -741,6 +851,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                     $isDeg  = ((int)($rME['degluciones'] ?? 0) === 1);
                     $isPara = ((int)($rME['parafiscales'] ?? 0) === 1);
                     $isPen  = ((int)($rME['pensionado'] ?? 0) === 1);
+                    $isArl  = ((int)($rME['arl'] ?? 0) === 1);
 
                     $docModsStr = trim((string)($rME['modalidades_adicionales'] ?? ''));
                     $docMods = !empty($docModsStr) ? array_filter(array_map('trim', explode(',', $docModsStr))) : [];
@@ -782,6 +893,11 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                         if (!empty($pUser)) $medicosPensionadosMap[$pUser] = true;
                         if (!empty($ced))   $medicosPensionadosMap[$ced] = true;
                         if (!empty($nom))   $medicosPensionadosMap[$nom] = true;
+                    }
+                    if ($isArl) {
+                        if (!empty($pUser)) $medicosArlMap[$pUser] = true;
+                        if (!empty($ced))   $medicosArlMap[$ced] = true;
+                        if (!empty($nom))   $medicosArlMap[$nom] = true;
                     }
 
                     $mEntId = !empty($rME['medico_entidad_id']) ? (int)$rME['medico_entidad_id'] : 0;
@@ -998,36 +1114,62 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         };
 
         // Función para clasificar si un examen es Tomografía Contrastada (aplica bonificación de $150.000 COP por cada 50)
-        $esTomografiaContrastada = function($cupsText, $conceptoCode, $cupsCodServinte, $cupsDescripcionServinte) {
+        $esTomografiaContrastada = function($cupsText, $conceptoCode, $cupsCodServinte, $cupsDescripcionServinte) use (&$tacContrastadasMap, &$tacSimpleMap) {
+            $pTokens = preg_split('/[\s\-]+/', trim((string)$cupsText), 3);
+            $pToken0 = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($pTokens[0] ?? '')));
+            $pToken1 = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($pTokens[1] ?? '')));
+            $sCode   = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)$cupsCodServinte)));
+
+            // 1. Coincidencia directa con el Maestro de Tarifas (tipo = 'TAC CONTRASTADA')
+            if (!empty($pToken0) && isset($tacContrastadasMap[$pToken0])) return true;
+            if (!empty($pToken1) && isset($tacContrastadasMap[$pToken1])) return true;
+            if (!empty($sCode) && isset($tacContrastadasMap[$sCode])) return true;
+
+            // 2. Si el código está explícitamente en el mapa de TAC SIMPLE:
+            if (!empty($pToken0) && isset($tacSimpleMap[$pToken0])) return false;
+            if (!empty($pToken1) && isset($tacSimpleMap[$pToken1])) return false;
+            if (!empty($sCode) && isset($tacSimpleMap[$sCode])) return false;
+
+            // 3. Verificación de seguridad por texto:
             $haystack = mb_strtoupper(trim($cupsText . ' ' . $cupsDescripcionServinte));
-            $cCode    = mb_strtoupper(trim($conceptoCode));
-            $sCode    = mb_strtoupper(trim($cupsCodServinte));
+            $cCode    = mb_strtoupper(trim((string)$conceptoCode));
 
             // Excluir expresamente radiografías simples o especiales, mamografías o ecografías
-            if (strpos($haystack, 'RADIOGRAF') !== false || strpos($haystack, 'ECOGRAF') !== false || strpos($haystack, 'ULTRASON') !== false || strpos($haystack, 'MAMOGRAF') !== false) {
+            if (strpos($haystack, 'RADIOGRAF') !== false || strpos($haystack, 'ECOGRAF') !== false || 
+                strpos($haystack, 'ULTRASON') !== false  || strpos($haystack, 'MAMOGRAF') !== false) {
                 return false;
             }
             if (preg_match('/^87[123]\d{3}/i', $sCode)) {
                 return false;
             }
 
-            // Debe ser tomografía (concepto TOHO/TOMO, código CUPS 879/x79 o texto característico)
+            // Debe pertenecer al concepto o descripción de Tomografía
             $isTomo = ($cCode === 'TOHO' || $cCode === 'TOMO' || 
                        strpos($haystack, 'TOMOGRAF') !== false || 
                        strpos($haystack, 'TAC') !== false || 
                        strpos($haystack, 'ANGIOTAC') !== false || 
                        strpos($haystack, 'UROTC') !== false || 
-                       strpos($haystack, 'UROTOMOGRAF') !== false);
+                       strpos($haystack, 'UROTOMOGRAF') !== false ||
+                       preg_match('/^[A-Z]?79\d{3,4}/i', $sCode) || 
+                       preg_match('/^879\d{3,4}/i', $sCode));
 
-            if (!$isTomo) {
-                if (preg_match('/^[A-Z]?79\d{3,4}/i', $sCode) || preg_match('/^879\d{3,4}/i', $sCode)) {
-                    $isTomo = true;
-                }
-            }
             if (!$isTomo) return false;
 
-            // Aplica a todas las tomografías (simples o contrastadas) para todos los médicos de todas las entidades ($150.000 COP por cada 50)
-            return true;
+            // Si expresamente dice 'SIMPLE' y NO menciona 'CONTRAST', es simple -> NO aplica bono
+            if (strpos($haystack, 'SIMPLE') !== false && strpos($haystack, 'CONTRAST') === false) {
+                return false;
+            }
+
+            // Criterios de contraste positivo:
+            $hasContraste = (strpos($haystack, 'CONTRAST') !== false || 
+                             strpos($haystack, 'CON CONTRASTE') !== false || 
+                             strpos($haystack, 'ANGIOTAC') !== false || 
+                             strpos($haystack, 'ANGIOTOMOGRAF') !== false || 
+                             strpos($haystack, 'UROTC') !== false || 
+                             strpos($haystack, 'UROTOMOGRAF') !== false || 
+                             strpos($haystack, 'TRIFASICO') !== false);
+
+            return $hasContraste;
         };
 
         // --- C.2 PROCESAR EVENTOS DE PROTEO Y REALIZAR MATCH ---
@@ -1061,35 +1203,45 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 if (!empty($candidateIndices)) {
                     $matchedIdx = null;
 
-                    // Coincidencia estricta del CÓDIGO CUPS completo de Proteo con el código de Servinte
+                    // FASE 1: Búsqueda de coincidencia EXACTA del código CUPS principal (Prioridad Máxima Absoluta)
                     foreach ($candidateIndices as $idx) {
                         $sCand = $servinteItemsList[$idx];
                         if (!$sCand['matched']) {
                             $sCodRaw = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sCand['codigo_examen'] ?? ''))));
-                            $sExaSec = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sCand['examen_sec'] ?? ''))));
-
-                            $isMatch = false;
-
-                            // 1. Coincidencia alfanumérica exacta (ej: A73210 === A73210, C73210 === C73210)
                             if (!empty($pCupsCode) && !empty($sCodRaw) && $pCupsCode === $sCodRaw) {
-                                $isMatch = true;
-                            }
-                            // 2. Coincidencia por código CUPS secundario (ej: 8732100 === 8732100)
-                            elseif (!empty($pCupsSec) && !empty($sCodRaw) && $pCupsSec === $sCodRaw) {
-                                $isMatch = true;
-                            }
-                            // 3. Coincidencia de código secundario de Proteo con el código de descripción de Servinte
-                            elseif (!empty($pCupsSec) && !empty($sExaSec) && $pCupsSec === $sExaSec) {
-                                $isMatch = true;
-                            }
-                            // 4. Coincidencia de código principal de Proteo con el código de descripción de Servinte
-                            elseif (!empty($pCupsCode) && !empty($sExaSec) && $pCupsCode === $sExaSec) {
-                                $isMatch = true;
-                            }
-
-                            if ($isMatch) {
                                 $matchedIdx = $idx;
                                 break;
+                            }
+                        }
+                    }
+
+                    // FASE 2: Si no hubo coincidencia exacta en Fase 1, evaluar códigos secundarios CUPS válidos
+                    if ($matchedIdx === null) {
+                        foreach ($candidateIndices as $idx) {
+                            $sCand = $servinteItemsList[$idx];
+                            if (!$sCand['matched']) {
+                                $sCodRaw = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sCand['codigo_examen'] ?? ''))));
+                                $sExaSec = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sCand['examen_sec'] ?? ''))));
+
+                                $isMatch = false;
+
+                                // 2.1 Coincidencia de código principal de Proteo con código secundario de Servinte
+                                if (!empty($pCupsCode) && !empty($sExaSec) && $pCupsCode === $sExaSec) {
+                                    $isMatch = true;
+                                }
+                                // 2.2 Coincidencia por código CUPS secundario de Proteo con código de Servinte
+                                elseif (!empty($pCupsSec) && !empty($sCodRaw) && $pCupsSec === $sCodRaw) {
+                                    $isMatch = true;
+                                }
+                                // 2.3 Coincidencia de código secundario de Proteo con código secundario de Servinte
+                                elseif (!empty($pCupsSec) && !empty($sExaSec) && $pCupsSec === $sExaSec) {
+                                    $isMatch = true;
+                                }
+
+                                if ($isMatch) {
+                                    $matchedIdx = $idx;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1239,39 +1391,64 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 $pItem['no_facturable_imadinsa'] = false;
             }
 
-            // Determinar Concepto del Examen
-            $conceptoRaw = '';
-            if (!empty($sInfo['concepto'])) {
+            // Determinar Concepto y Servicio del Examen
+            $conceptoRaw       = '';
+            $servicioRaw       = '';
+            $cuentaContableRaw = '';
+            $nombreCuentaRaw   = '';
+
+            // 1. Por código Servinte
+            if (!empty($cupsCodeServinte)) {
+                $cleanCodS = preg_replace('/[^A-Z0-9]/', '', $cupsCodeServinte);
+                if (isset($cupsConceptoMap[$cleanCodS]))       $conceptoRaw       = $cupsConceptoMap[$cleanCodS];
+                if (isset($cupsServicioMap[$cleanCodS]))       $servicioRaw       = $cupsServicioMap[$cleanCodS];
+                if (isset($cupsCuentaContableMap[$cleanCodS])) $cuentaContableRaw = $cupsCuentaContableMap[$cleanCodS];
+                if (isset($cupsNombreCuentaMap[$cleanCodS]))   $nombreCuentaRaw   = $cupsNombreCuentaMap[$cleanCodS];
+            }
+            // 2. Por código principal de Proteo
+            if (empty($conceptoRaw) || empty($servicioRaw)) {
+                $cleanPCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsCode($pItem['cups'] ?? ''));
+                if (empty($conceptoRaw) && isset($cupsConceptoMap[$cleanPCode]))       $conceptoRaw       = $cupsConceptoMap[$cleanPCode];
+                if (empty($servicioRaw) && isset($cupsServicioMap[$cleanPCode]))       $servicioRaw       = $cupsServicioMap[$cleanPCode];
+                if (empty($cuentaContableRaw) && isset($cupsCuentaContableMap[$cleanPCode])) $cuentaContableRaw = $cupsCuentaContableMap[$cleanPCode];
+                if (empty($nombreCuentaRaw) && isset($cupsNombreCuentaMap[$cleanPCode]))   $nombreCuentaRaw   = $cupsNombreCuentaMap[$cleanPCode];
+            }
+            // 3. Por código secundario de Proteo
+            if (empty($conceptoRaw) || empty($servicioRaw)) {
+                $cleanPSec = preg_replace('/[^A-Z0-9]/', '', $extractCupsSecondaryCode($pItem['cups'] ?? ''));
+                if (empty($conceptoRaw) && isset($cupsConceptoMap[$cleanPSec]))       $conceptoRaw       = $cupsConceptoMap[$cleanPSec];
+                if (empty($servicioRaw) && isset($cupsServicioMap[$cleanPSec]))       $servicioRaw       = $cupsServicioMap[$cleanPSec];
+                if (empty($cuentaContableRaw) && isset($cupsCuentaContableMap[$cleanPSec])) $cuentaContableRaw = $cupsCuentaContableMap[$cleanPSec];
+                if (empty($nombreCuentaRaw) && isset($cupsNombreCuentaMap[$cleanPSec]))   $nombreCuentaRaw   = $cupsNombreCuentaMap[$cleanPSec];
+            }
+            // 4. Si Servinte traía concepto
+            if (empty($conceptoRaw) && !empty($sInfo['concepto'])) {
                 $conceptoRaw = strtoupper(trim((string)$sInfo['concepto']));
             }
-            if (empty($conceptoRaw) && !empty($cupsCodeServinte)) {
-                $cleanCodS = preg_replace('/[^A-Z0-9]/', '', $cupsCodeServinte);
-                if (isset($cupsConceptoMap[$cleanCodS])) $conceptoRaw = $cupsConceptoMap[$cleanCodS];
-            }
-            if (empty($conceptoRaw)) {
-                $cleanPCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsCode($pItem['cups'] ?? ''));
-                if (isset($cupsConceptoMap[$cleanPCode])) $conceptoRaw = $cupsConceptoMap[$cleanPCode];
-            }
-            if (empty($conceptoRaw)) {
-                $cleanPSec = preg_replace('/[^A-Z0-9]/', '', $extractCupsSecondaryCode($pItem['cups'] ?? ''));
-                if (isset($cupsConceptoMap[$cleanPSec])) $conceptoRaw = $cupsConceptoMap[$cleanPSec];
-            }
+            // 5. Análisis textual en cups/examen
             if (empty($conceptoRaw)) {
                 $nomCupsUpper = strtoupper(trim((string)($pItem['cups'] ?? '')));
-                if (strpos($nomCupsUpper, 'ECO') !== false || strpos($nomCupsUpper, 'ULTRASONIDO') !== false) {
-                    $conceptoRaw = 'ECOG';
-                } elseif (strpos($nomCupsUpper, 'DOPP') !== false) {
+                $nomExaUpper  = strtoupper(trim((string)($sInfo['examen'] ?? ($pItem['nombre_examen'] ?? ''))));
+                $haystackNom  = $nomCupsUpper . ' ' . $nomExaUpper;
+                $cleanPNum    = preg_replace('/[^0-9]/', '', $nomCupsUpper);
+                if (strpos($haystackNom, 'ESPECIAL') !== false) {
+                    $conceptoRaw = 'RXES';
+                } elseif (strpos($haystackNom, 'DOPP') !== false || substr($cleanPNum, 0, 3) === '882') {
                     $conceptoRaw = 'DOPP';
-                } elseif (strpos($nomCupsUpper, 'TOMO') !== false || strpos($nomCupsUpper, 'TAC') !== false) {
+                } elseif (strpos($haystackNom, 'ECO') !== false || strpos($haystackNom, 'ULTRASO') !== false || substr($cleanPNum, 0, 3) === '881') {
+                    $conceptoRaw = 'ECOG';
+                } elseif (strpos($haystackNom, 'TOMO') !== false || strpos($haystackNom, 'TAC') !== false || substr($cleanPNum, 0, 3) === '879') {
                     $conceptoRaw = 'TOHO';
-                } elseif (strpos($nomCupsUpper, 'MAMO') !== false) {
+                } elseif (strpos($haystackNom, 'MAMO') !== false || strpos($haystackNom, 'SENO') !== false || substr($cleanPNum, 0, 4) === '8768') {
                     $conceptoRaw = 'MAMO';
-                } elseif (strpos($nomCupsUpper, 'BIO') !== false) {
+                } elseif (strpos($haystackNom, 'BIOP') !== false || strpos($haystackNom, 'BIO') !== false || strpos($haystackNom, 'BACAF') !== false) {
                     $conceptoRaw = 'BIOP';
-                } elseif (strpos($nomCupsUpper, 'RX') !== false || strpos($nomCupsUpper, 'RADIOGRAF') !== false) {
-                    $conceptoRaw = 'RXSI';
-                } elseif (strpos($nomCupsUpper, 'BLOQUEO') !== false || strpos($nomCupsUpper, 'BLOQUEOS') !== false) {
+                } elseif (strpos($haystackNom, 'BLOQUEO') !== false || strpos($haystackNom, 'BLOQUEOS') !== false) {
                     $conceptoRaw = 'BLOQ';
+                } elseif (strpos($haystackNom, 'RESONAN') !== false || strpos($haystackNom, 'RMN') !== false || substr($cleanPNum, 0, 3) === '883') {
+                    $conceptoRaw = 'RESO';
+                } elseif (strpos($haystackNom, 'RAYOS X') !== false || strpos($haystackNom, 'RADIOGRAF') !== false || strpos($nomCupsUpper, 'RX') !== false) {
+                    $conceptoRaw = 'RXSI';
                 } else {
                     $conceptoRaw = 'OTROS';
                 }
@@ -1279,8 +1456,24 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
             if ($esBloqueo && ($conceptoRaw === 'OTROS' || empty($conceptoRaw))) {
                 $conceptoRaw = 'BLOQ';
             }
+
+            if (empty($servicioRaw)) {
+                if ($conceptoRaw === 'RXES' || $cuentaContableRaw === '61251002') $servicioRaw = 'RX ESPECIALES';
+                elseif ($conceptoRaw === 'RXSI' || $cuentaContableRaw === '61251001') $servicioRaw = 'RX SIMPLE';
+                elseif ($conceptoRaw === 'ECOG') $servicioRaw = 'ECOGRAFÍAS';
+                elseif ($conceptoRaw === 'TOHO' || $cuentaContableRaw === '61251007') $servicioRaw = 'TOMOGRAFÍAS';
+                elseif ($conceptoRaw === 'MAMO' || $cuentaContableRaw === '61251006') $servicioRaw = 'MAMOGRAFÍAS';
+                elseif ($conceptoRaw === 'DOPP') $servicioRaw = 'DOPPLER';
+                elseif ($conceptoRaw === 'BIOP') $servicioRaw = 'BIOPSIAS';
+                elseif ($conceptoRaw === 'BLOQ') $servicioRaw = 'BLOQUEOS';
+                else $servicioRaw = $conceptosNombresMap[$conceptoRaw] ?? $conceptoRaw;
+            }
+
             $pItem['concepto']        = $conceptoRaw;
             $pItem['concepto_nombre'] = $conceptosNombresMap[$conceptoRaw] ?? $conceptoRaw;
+            $pItem['servicio']        = $servicioRaw;
+            $pItem['cuenta_contable'] = $cuentaContableRaw;
+            $pItem['nombre_cuenta']   = $nombreCuentaRaw;
             $pItem['es_tomografia_contrastada'] = $esTomografiaContrastada($pItem['cups'] ?? '', $pItem['concepto'] ?? '', $cupsCodeServinte, $sInfo['examen'] ?? '');
 
             // Aplicar filtro de cruce si existe
@@ -1471,17 +1664,58 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                     $sItem['no_facturable_imadinsa'] = false;
                 }
 
-                $conceptoRawS = !empty($sItemData['concepto']) ? strtoupper(trim((string)$sItemData['concepto'])) : '';
-                if (empty($conceptoRawS) && !empty($cupsCodeServinte)) {
+                $conceptoRawS       = !empty($sItemData['concepto']) ? strtoupper(trim((string)$sItemData['concepto'])) : '';
+                $servicioRawS       = '';
+                $cuentaContableRawS = '';
+                $nombreCuentaRawS   = '';
+
+                if (!empty($cupsCodeServinte)) {
                     $cleanCodS = preg_replace('/[^A-Z0-9]/', '', $cupsCodeServinte);
-                    if (isset($cupsConceptoMap[$cleanCodS])) $conceptoRawS = $cupsConceptoMap[$cleanCodS];
+                    if (empty($conceptoRawS) && isset($cupsConceptoMap[$cleanCodS]))       $conceptoRawS       = $cupsConceptoMap[$cleanCodS];
+                    if (isset($cupsServicioMap[$cleanCodS]))                               $servicioRawS       = $cupsServicioMap[$cleanCodS];
+                    if (isset($cupsCuentaContableMap[$cleanCodS]))                         $cuentaContableRawS = $cupsCuentaContableMap[$cleanCodS];
+                    if (isset($cupsNombreCuentaMap[$cleanCodS]))                           $nombreCuentaRawS   = $cupsNombreCuentaMap[$cleanCodS];
                 }
                 if ($esBloqueo && (empty($conceptoRawS) || $conceptoRawS === 'OTROS' || $conceptoRawS === 'RXSI')) {
                     $conceptoRawS = 'BLOQ';
                 }
-                if (empty($conceptoRawS)) $conceptoRawS = 'RXSI';
+                if (empty($conceptoRawS)) {
+                    $cleanCodSNum = preg_replace('/[^0-9]/', '', (string)$cupsCodeServinte);
+                    $nomServUpper = strtoupper(trim((string)($sItemData['nombre_examen'] ?? ($sItemData['examen'] ?? ''))));
+                    if (strpos($nomServUpper, 'ESPECIAL') !== false) {
+                        $conceptoRawS = 'RXES';
+                    } elseif (strpos($nomServUpper, 'DOPP') !== false || substr($cleanCodSNum, 0, 3) === '882') {
+                        $conceptoRawS = 'DOPP';
+                    } elseif (strpos($nomServUpper, 'ECO') !== false || strpos($nomServUpper, 'ULTRASO') !== false || substr($cleanCodSNum, 0, 3) === '881') {
+                        $conceptoRawS = 'ECOG';
+                    } elseif (strpos($nomServUpper, 'TOMO') !== false || strpos($nomServUpper, 'TAC') !== false || substr($cleanCodSNum, 0, 3) === '879') {
+                        $conceptoRawS = 'TOHO';
+                    } elseif (strpos($nomServUpper, 'MAMO') !== false || strpos($nomServUpper, 'SENO') !== false || substr($cleanCodSNum, 0, 4) === '8768') {
+                        $conceptoRawS = 'MAMO';
+                    } elseif (strpos($nomServUpper, 'RAYOS X') !== false || strpos($nomServUpper, 'RADIOGRAF') !== false || strpos($nomServUpper, 'RX') !== false) {
+                        $conceptoRawS = 'RXSI';
+                    } else {
+                        $conceptoRawS = 'OTROS';
+                    }
+                }
+
+                if (empty($servicioRawS)) {
+                    if ($conceptoRawS === 'RXES' || $cuentaContableRawS === '61251002') $servicioRawS = 'RX ESPECIALES';
+                    elseif ($conceptoRawS === 'RXSI' || $cuentaContableRawS === '61251001') $servicioRawS = 'RX SIMPLE';
+                    elseif ($conceptoRawS === 'ECOG') $servicioRawS = 'ECOGRAFÍAS';
+                    elseif ($conceptoRawS === 'TOHO' || $cuentaContableRawS === '61251007') $servicioRawS = 'TOMOGRAFÍAS';
+                    elseif ($conceptoRawS === 'MAMO' || $cuentaContableRawS === '61251006') $servicioRawS = 'MAMOGRAFÍAS';
+                    elseif ($conceptoRawS === 'DOPP') $servicioRawS = 'DOPPLER';
+                    elseif ($conceptoRawS === 'BIOP') $servicioRawS = 'BIOPSIAS';
+                    elseif ($conceptoRawS === 'BLOQ') $servicioRawS = 'BLOQUEOS';
+                    else $servicioRawS = $conceptosNombresMap[$conceptoRawS] ?? $conceptoRawS;
+                }
+
                 $sItem['concepto']        = $conceptoRawS;
                 $sItem['concepto_nombre'] = $conceptosNombresMap[$conceptoRawS] ?? $conceptoRawS;
+                $sItem['servicio']        = $servicioRawS;
+                $sItem['cuenta_contable'] = $cuentaContableRawS;
+                $sItem['nombre_cuenta']   = $nombreCuentaRawS;
                 $sItem['es_tomografia_contrastada'] = $esTomografiaContrastada($sItem['cups'] ?? '', $sItem['concepto'] ?? '', $cupsCodeServinte, $sItemData['examen'] ?? '');
 
                 // Filtros para registros Solo Servinte
@@ -1511,76 +1745,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         }
     }
 
-    // Exportar a Excel
-    if ($action === 'export_excel') {
-        header("Content-Type: application/vnd.ms-excel; charset=utf-8");
-        header("Content-Disposition: attachment; filename=Reporte_Procedimientos_Medicos_" . date('Y-m-d_H-i') . ".xls");
-        header("Pragma: no-cache");
-        header("Expires: 0");
-
-        echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-        echo '<head><meta charset="utf-8"/><style>table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; } th { background: #0f172a; color: white; padding: 8px; border: 1px solid #cbd5e1; } td { padding: 6px; border: 1px solid #cbd5e1; } .num { text-align: right; } .cruzado { background: #dcfce7; color: #166534; font-weight: bold; } .solo-proteo { background: #fee2e2; color: #991b1b; font-weight: bold; } .solo-servinte { background: #e0f2fe; color: #0369a1; font-weight: bold; }</style></head>';
-        echo '<body>';
-        echo '<h2>Reporte de Procedimientos Médicos (Proteo vs Servinte) - LIHO IPS</h2>';
-        echo '<p><strong>Rango de fechas:</strong> ' . htmlspecialchars($fechaDesde) . ' al ' . htmlspecialchars($fechaHasta) . '</p>';
-        echo '<table>';
-        echo '<thead><tr>
-                <th>Origen</th>
-                <th>ID Evento / Ref</th>
-                <th>Fuente</th>
-                <th>Ingreso</th>
-                <th>Tipo Paciente</th>
-                <th>Fecha</th>
-                <th>Sede</th>
-                <th>Médico (Proteo)</th>
-                <th>CUPS / Examen</th>
-                <th>Modalidad</th>
-                <th>Estado Proteo / Servinte</th>
-                <th>Estado Cruce (Fuente + Ingreso)</th>
-                <th>Paciente (Servinte)</th>
-                <th>Identificación</th>
-                <th>Entidad (EPS)</th>
-                <th>Valor del Examen</th>
-                <th>Valor a Pagar (Tarifario)</th>
-              </tr></thead><tbody>';
-
-        foreach ($records as $r) {
-            $s = $r['servinte'] ?? ($r['servinte_unmatched'] ?? null);
-            $cruceClass = ($r['cruce'] === 'CRUZADO') ? 'cruzado' : (($r['cruce'] === 'SOLO_SERVINTE') ? 'solo-servinte' : 'solo-proteo');
-            $tipoPacRaw = strtoupper(trim((string)($r['tipo_paciente'] ?? ($s['tipo_paciente'] ?? 'E'))));
-            $tipoPacDisp = ($tipoPacRaw === 'E' || $tipoPacRaw === 'EMPRESA') ? 'Empresa' : (($tipoPacRaw === 'P' || $tipoPacRaw === 'PARTICULAR') ? 'Particular' : $tipoPacRaw);
-            echo '<tr>';
-            echo '<td>' . htmlspecialchars($r['origen']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['id']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['fuente']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['ingreso']) . '</td>';
-            echo '<td>' . htmlspecialchars($tipoPacDisp) . '</td>';
-            echo '<td>' . htmlspecialchars($r['fecha']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['sede']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['usuario']) . '</td>';
-            echo '<td>' . htmlspecialchars($r['cups']) . '</td>';
-            $modDisp = $r['modalidad'];
-            if (!empty($r['es_bloqueo_ho'])) {
-                $tierTxt = !empty($r['bloqueo_tier_label']) ? $r['bloqueo_tier_label'] . ' - ' : '';
-                $modDisp = 'BLOQUEO HO (' . $tierTxt . ($r['bloqueo_pct'] ?? 40) . '%)';
-            }
-            echo '<td>' . htmlspecialchars($modDisp) . '</td>';
-            echo '<td>' . htmlspecialchars($r['estado_actual']) . '</td>';
-            echo '<td class="' . $cruceClass . '">' . htmlspecialchars($r['cruce']) . '</td>';
-            echo '<td>' . htmlspecialchars($s['paciente'] ?? $r['nombre'] ?? 'N/A') . '</td>';
-            echo '<td>' . htmlspecialchars(($s['tipo_doc'] ?? '') . ' ' . ($s['identificacion'] ?? $r['documento'] ?? '')) . '</td>';
-            echo '<td>' . htmlspecialchars($s['entidad'] ?? 'N/A') . '</td>';
-            echo '<td class="num">$' . number_format($s['total'] ?? 0, 0, ',', '.') . '</td>';
-            echo '<td class="num">$' . number_format($r['valor_a_pagar'] ?? 0, 0, ',', '.') . '</td>';
-            echo '</tr>';
-        }
-        echo '</tbody></table></body></html>';
-        exit;
-    }
-
-    // Respuesta JSON
-    header('Content-Type: application/json');
-
+    // --- CÁLCULO DE MÉTRICAS, CONTADORES Y TOTALES GLOBALES ---
     $totalExamenes     = count($records);
     $totalCruzados     = 0;
     $totalSoloProteo   = 0;
@@ -1655,7 +1820,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         }
     }
 
-    // Calcular Bonificación por Tomografías (1 bono de $150.000 COP por cada 50 tomografías para todos los médicos y entidades)
+    // Calcular Bonificación por Tomografías Contrastadas (1 bono de $150.000 COP por cada 50 tomografías contrastadas)
     $bonificacionTomoCant      = (int)floor($totalTomografiasContrastadas / 50);
     $bonificacionTomoValor     = $bonificacionTomoCant * 150000;
     $bonificacionTomoRestantes = ($totalTomografiasContrastadas % 50 === 0 && $totalTomografiasContrastadas > 0) 
@@ -1666,8 +1831,9 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
     if ($bonificacionTomoCant > 0) {
         $conceptosKpiMap['BONI_TOHO'] = [
             'codigo'          => 'BONI_TOHO',
-            'nombre'          => 'Bonificación Tomografías (Regla 50x$150.000)',
+            'nombre'          => 'Bonificación Tomografías Contrastadas (Regla 50x$150.000)',
             'cantidad'        => (int)$bonificacionTomoCant,
+            'registros'       => 1,
             'valor_pagar'     => (float)$bonificacionTomoValor,
             'valor_examen'    => 0,
             'es_bonificacion' => true
@@ -1682,6 +1848,264 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
 
     $totalValorServinte = $cruzadosValorServinte + $soloProteoValorServinte + $soloServinteValorServinte;
     $totalValorPagar    = $cruzadosValorPagar + $soloProteoValorPagar + $soloServinteValorPagar + $bonificacionTomoValor;
+    $porcentajePagoTotal = ($totalValorServinte > 0) ? round(($totalValorPagar / $totalValorServinte) * 100, 1) : 0;
+
+    // Exportar a Excel
+    if ($action === 'export_excel') {
+        header("Content-Type: application/vnd.ms-excel; charset=utf-8");
+        header("Content-Disposition: attachment; filename=Reporte_Procedimientos_Medicos_" . date('Y-m-d_H-i') . ".xls");
+        header("Pragma: no-cache");
+        header("Expires: 0");
+
+        echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+        echo '<head><meta charset="utf-8"/>';
+        echo '<style>
+            body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
+            table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+            th { background-color: #0f172a; color: #ffffff; padding: 7px 10px; border: 1px solid #94a3b8; font-weight: bold; font-size: 10pt; text-align: left; }
+            td { padding: 6px 9px; border: 1px solid #cbd5e1; font-size: 10pt; vertical-align: middle; }
+            .th-sub { background-color: #1e293b; color: #ffffff; font-weight: bold; padding: 6px 10px; border: 1px solid #475569; font-size: 10pt; }
+            .th-cant { background-color: #047857; color: #ffffff; font-weight: bold; text-align: center; }
+            .title-main { font-size: 15pt; font-weight: bold; color: #0f172a; padding: 4px 0; }
+            .title-sub { font-size: 10pt; color: #475569; }
+            .section-header { font-size: 12pt; font-weight: bold; color: #0f172a; margin-top: 15px; margin-bottom: 6px; }
+            .kpi-title { background-color: #0f172a; color: #f8fafc; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 4px; }
+            .kpi-val { background-color: #f8fafc; font-weight: bold; font-size: 13pt; text-align: center; color: #0f172a; padding: 8px 4px; }
+            .kpi-sub { background-color: #f1f5f9; font-size: 8pt; text-align: center; color: #64748b; padding: 4px; }
+            .kpi-bono-val { background-color: #fefce8; color: #a16207; font-weight: bold; font-size: 12pt; text-align: center; padding: 8px 4px; }
+            .total-row { background-color: #e2e8f0; font-weight: bold; border-top: 2px solid #0f172a; }
+            .cruzado { background-color: #dcfce7; color: #166534; font-weight: bold; text-align: center; }
+            .solo-proteo { background-color: #fee2e2; color: #991b1b; font-weight: bold; text-align: center; }
+            .solo-servinte { background-color: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center; }
+            .boni-row { background-color: #fef9c3; font-weight: bold; }
+            .num { text-align: right; mso-number-format: "\$#,##0"; }
+            .cant { text-align: center; font-weight: bold; mso-number-format: "#,##0"; }
+            .pct { text-align: right; mso-number-format: "0\.0%"; }
+            .center { text-align: center; }
+        </style></head>';
+        echo '<body>';
+
+        // 1. Encabezado principal
+        echo '<table style="border: none; margin-bottom: 12px;">';
+        echo '<tr><td colspan="18" class="title-main" style="border: none;">REPORTE DE PROCEDIMIENTOS MÉDICOS (PROTEO VS SERVINTE)</td></tr>';
+        echo '<tr><td colspan="18" class="title-sub" style="border: none;"><strong>Entidad / IPS:</strong> ' . htmlspecialchars($entidadActivaNombre) . ' &nbsp;|&nbsp; <strong>Fecha de Generación:</strong> ' . date('d/m/Y H:i:s') . '</td></tr>';
+        echo '<tr><td colspan="18" class="title-sub" style="border: none;"><strong>Rango de Fechas:</strong> ' . htmlspecialchars($fechaDesde) . ' al ' . htmlspecialchars($fechaHasta) . ' &nbsp;|&nbsp; <strong>Filtro Médico:</strong> ' . htmlspecialchars(!empty($medicoFiltro) ? $medicoFiltro : 'TODOS LOS MÉDICOS') . ' &nbsp;|&nbsp; <strong>Estado de Cruce:</strong> ' . htmlspecialchars(!empty($cruceFiltro) ? $cruceFiltro : 'TODAS LAS COINCIDENCIAS') . '</td></tr>';
+        echo '</table>';
+
+        // 2. Tarjetas / Bloque de Contadores Generales (KPIs)
+        echo '<table style="border: 1px solid #cbd5e1; margin-bottom: 18px;">';
+        echo '<tr>
+                <th class="kpi-title" style="width: 16%;">TOTAL REGISTROS</th>
+                <th class="kpi-title" style="width: 16%;">TOTAL CANTIDAD ESTUDIOS</th>
+                <th class="kpi-title" style="width: 17%;">MONTO EXAMEN (SERVINTE)</th>
+                <th class="kpi-title" style="width: 17%;">MONTO A PAGAR (TARIFARIO)</th>
+                <th class="kpi-title" style="width: 14%;">% MONTO A PAGAR</th>
+                <th class="kpi-title" style="width: 20%;">BONIFICACIÓN TAC CONTRASTADAS</th>
+              </tr>';
+        echo '<tr>
+                <td class="kpi-val">' . number_format($totalExamenes, 0, ',', '.') . '</td>
+                <td class="kpi-val cant" style="color: #047857; font-size: 13pt;">' . number_format($totalCantidadEstudios, 0, ',', '.') . '</td>
+                <td class="kpi-val num" style="font-size: 13pt;">$' . number_format($totalValorServinte, 0, ',', '.') . '</td>
+                <td class="kpi-val num" style="color: #047857; font-size: 13pt;">$' . number_format($totalValorPagar, 0, ',', '.') . '</td>
+                <td class="kpi-val pct" style="font-size: 13pt;">' . $porcentajePagoTotal . '%</td>
+                <td class="kpi-bono-val">' . 
+                    ($bonificacionTomoCant > 0 
+                        ? $bonificacionTomoCant . ' bono(s) (+$' . number_format($bonificacionTomoValor, 0, ',', '.') . ')<br/><span style="font-size: 8pt; font-weight: normal; color: #854d0e;">(' . $totalTomografiasContrastadas . ' Contrastadas acumuladas)</span>'
+                        : '0 bonos ($0)<br/><span style="font-size: 8pt; font-weight: normal; color: #64748b;">(' . $totalTomografiasContrastadas . '/50 Contrastadas)</span>'
+                    ) . 
+                '</td>
+              </tr>';
+        echo '<tr>
+                <td class="kpi-sub">Proteo + Servinte</td>
+                <td class="kpi-sub">Unidades Totales Facturadas</td>
+                <td class="kpi-sub">Facturado en Servinte</td>
+                <td class="kpi-sub">Tarifario LIHO + Bonos</td>
+                <td class="kpi-sub">Sobre Facturación Servinte</td>
+                <td class="kpi-sub">Regla: Cada 50 TAC Contrastadas = $150.000 COP</td>
+              </tr>';
+        echo '</table>';
+
+        // 3. Tabla de Resumen por Concepto / Especialidad (Contadores detallados)
+        echo '<p class="section-header">RESUMEN POR CONCEPTO / MODALIDAD (CONTADORES Y MONTOS)</p>';
+        echo '<table style="border: 1px solid #cbd5e1; margin-bottom: 18px;">';
+        echo '<thead><tr>
+                <th class="th-sub" style="width: 28%;">Concepto / Modalidad</th>
+                <th class="th-sub center" style="width: 10%;">Código</th>
+                <th class="th-sub center" style="width: 14%; background-color: #047857;">Cantidad de Estudios</th>
+                <th class="th-sub center" style="width: 12%;">N° Registros</th>
+                <th class="th-sub" style="width: 18%; text-align: right;">Monto Facturado Servinte</th>
+                <th class="th-sub" style="width: 18%; text-align: right;">Monto a Pagar (Tarifario)</th>
+              </tr></thead><tbody>';
+
+        foreach ($conceptosKpiList as $cItem) {
+            $cCant = (int)($cItem['cantidad'] ?? 0);
+            $cRegs = (int)($cItem['registros'] ?? $cCant);
+            $cValS = (float)($cItem['valor_examen'] ?? 0);
+            $cValP = (float)($cItem['valor_pagar'] ?? 0);
+            $isBoni = !empty($cItem['es_bonificacion']);
+
+            echo '<tr class="' . ($isBoni ? 'boni-row' : '') . '">';
+            echo '<td><strong>' . htmlspecialchars($cItem['nombre']) . '</strong></td>';
+            echo '<td class="center">' . htmlspecialchars($cItem['codigo']) . '</td>';
+            echo '<td class="cant">' . number_format($cCant, 0, ',', '.') . '</td>';
+            echo '<td class="center">' . number_format($cRegs, 0, ',', '.') . '</td>';
+            echo '<td class="num">$' . number_format($cValS, 0, ',', '.') . '</td>';
+            echo '<td class="num">$' . number_format($cValP, 0, ',', '.') . '</td>';
+            echo '</tr>';
+        }
+
+        echo '<tr class="total-row">';
+        echo '<td colspan="2"><strong>TOTALES CONSOLIDADOS POR CONCEPTO</strong></td>';
+        echo '<td class="cant" style="font-size: 11pt;">' . number_format($totalCantidadEstudios + $bonificacionTomoCant, 0, ',', '.') . '</td>';
+        echo '<td class="center" style="font-size: 11pt;">' . number_format($totalExamenes + ($bonificacionTomoCant > 0 ? 1 : 0), 0, ',', '.') . '</td>';
+        echo '<td class="num" style="font-size: 11pt;"><strong>$' . number_format($totalValorServinte, 0, ',', '.') . '</strong></td>';
+        echo '<td class="num" style="font-size: 11pt; color: #047857;"><strong>$' . number_format($totalValorPagar, 0, ',', '.') . '</strong></td>';
+        echo '</tr>';
+        echo '</tbody></table>';
+
+        // 4. Tabla de Resumen por Estado de Conciliación
+        echo '<p class="section-header">RESUMEN POR ESTADO DE CONCILIACIÓN (CRUCE)</p>';
+        echo '<table style="border: 1px solid #cbd5e1; margin-bottom: 22px;">';
+        echo '<thead><tr>
+                <th class="th-sub" style="width: 30%;">Estado de Cruce</th>
+                <th class="th-sub center" style="width: 14%;">N° Registros</th>
+                <th class="th-sub center" style="width: 14%;">% Registros</th>
+                <th class="th-sub" style="width: 21%; text-align: right;">Monto Facturado Servinte</th>
+                <th class="th-sub" style="width: 21%; text-align: right;">Monto a Pagar (Tarifario)</th>
+              </tr></thead><tbody>';
+
+        $pctCruz = ($totalExamenes > 0) ? round(($totalCruzados / $totalExamenes) * 100, 1) : 0;
+        $pctProt = ($totalExamenes > 0) ? round(($totalSoloProteo / $totalExamenes) * 100, 1) : 0;
+        $pctServ = ($totalExamenes > 0) ? round(($totalSoloServinte / $totalExamenes) * 100, 1) : 0;
+
+        echo '<tr>
+                <td><span class="cruzado" style="padding: 2px 8px; border-radius: 4px;">CRUZADO (Proteo + Servinte)</span></td>
+                <td class="center"><strong>' . number_format($totalCruzados, 0, ',', '.') . '</strong></td>
+                <td class="pct">' . $pctCruz . '%</td>
+                <td class="num">$' . number_format($cruzadosValorServinte, 0, ',', '.') . '</td>
+                <td class="num">$' . number_format($cruzadosValorPagar, 0, ',', '.') . '</td>
+              </tr>';
+        echo '<tr>
+                <td><span class="solo-proteo" style="padding: 2px 8px; border-radius: 4px;">SOLO PROTEO (Sin Servinte)</span></td>
+                <td class="center"><strong>' . number_format($totalSoloProteo, 0, ',', '.') . '</strong></td>
+                <td class="pct">' . $pctProt . '%</td>
+                <td class="num">$' . number_format($soloProteoValorServinte, 0, ',', '.') . '</td>
+                <td class="num">$' . number_format($soloProteoValorPagar, 0, ',', '.') . '</td>
+              </tr>';
+        echo '<tr>
+                <td><span class="solo-servinte" style="padding: 2px 8px; border-radius: 4px;">SOLO SERVINTE (Sin Proteo)</span></td>
+                <td class="center"><strong>' . number_format($totalSoloServinte, 0, ',', '.') . '</strong></td>
+                <td class="pct">' . $pctServ . '%</td>
+                <td class="num">$' . number_format($soloServinteValorServinte, 0, ',', '.') . '</td>
+                <td class="num">$' . number_format($soloServinteValorPagar, 0, ',', '.') . '</td>
+              </tr>';
+        echo '<tr class="total-row">
+                <td><strong>TOTALES CONCILIACIÓN</strong></td>
+                <td class="center"><strong>' . number_format($totalExamenes, 0, ',', '.') . '</strong></td>
+                <td class="pct"><strong>100.0%</strong></td>
+                <td class="num"><strong>$' . number_format($totalValorServinte, 0, ',', '.') . '</strong></td>
+                <td class="num"><strong>$' . number_format($cruzadosValorPagar + $soloProteoValorPagar + $soloServinteValorPagar, 0, ',', '.') . '</strong></td>
+              </tr>';
+        echo '</tbody></table>';
+
+        // 5. Tabla Detallada con Columna Cantidad
+        echo '<p class="section-header">DETALLE COMPLETO DE PROCEDIMIENTOS Y EXÁMENES</p>';
+        echo '<table>';
+        echo '<thead><tr>
+                <th>Origen</th>
+                <th>ID Evento / Ref</th>
+                <th>Fuente</th>
+                <th>Ingreso</th>
+                <th>Tipo Paciente</th>
+                <th>Fecha</th>
+                <th>Sede</th>
+                <th>Médico (Proteo)</th>
+                <th>CUPS / Examen</th>
+                <th class="th-cant">Cantidad</th>
+                <th>Modalidad</th>
+                <th>Estado Proteo / Servinte</th>
+                <th>Estado Cruce (Fuente + Ingreso)</th>
+                <th>Paciente (Servinte)</th>
+                <th>Identificación</th>
+                <th>Entidad (EPS)</th>
+                <th style="text-align: right;">Valor del Examen</th>
+                <th style="text-align: right;">Valor a Pagar (Tarifario)</th>
+              </tr></thead><tbody>';
+
+        foreach ($records as $r) {
+            $s = $r['servinte'] ?? ($r['servinte_unmatched'] ?? null);
+            $cruceClass = ($r['cruce'] === 'CRUZADO') ? 'cruzado' : (($r['cruce'] === 'SOLO_SERVINTE') ? 'solo-servinte' : 'solo-proteo');
+            $tipoPacRaw = strtoupper(trim((string)($r['tipo_paciente'] ?? ($s['tipo_paciente'] ?? 'E'))));
+            $tipoPacDisp = ($tipoPacRaw === 'E' || $tipoPacRaw === 'EMPRESA') ? 'Empresa' : (($tipoPacRaw === 'P' || $tipoPacRaw === 'PARTICULAR') ? 'Particular' : $tipoPacRaw);
+            $cantItem = (int)($r['cantidad'] ?? 1);
+            if ($cantItem <= 0) $cantItem = 1;
+
+            echo '<tr>';
+            echo '<td>' . htmlspecialchars($r['origen']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['id']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['fuente']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['ingreso']) . '</td>';
+            echo '<td>' . htmlspecialchars($tipoPacDisp) . '</td>';
+            echo '<td>' . htmlspecialchars($r['fecha']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['sede']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['usuario']) . '</td>';
+            echo '<td>' . htmlspecialchars($r['cups']) . '</td>';
+            echo '<td class="cant">' . $cantItem . '</td>';
+            $modDisp = $r['modalidad'];
+            if (!empty($r['es_bloqueo_ho'])) {
+                $tierTxt = !empty($r['bloqueo_tier_label']) ? $r['bloqueo_tier_label'] . ' - ' : '';
+                $modDisp = 'BLOQUEO HO (' . $tierTxt . ($r['bloqueo_pct'] ?? 40) . '%)';
+            }
+            echo '<td>' . htmlspecialchars($modDisp) . '</td>';
+            echo '<td>' . htmlspecialchars($r['estado_actual']) . '</td>';
+            echo '<td class="' . $cruceClass . '">' . htmlspecialchars($r['cruce']) . '</td>';
+            echo '<td>' . htmlspecialchars($s['paciente'] ?? $r['nombre'] ?? 'N/A') . '</td>';
+            echo '<td>' . htmlspecialchars(($s['tipo_doc'] ?? '') . ' ' . ($s['identificacion'] ?? $r['documento'] ?? '')) . '</td>';
+            echo '<td>' . htmlspecialchars($s['entidad'] ?? 'N/A') . '</td>';
+            echo '<td class="num">$' . number_format($s['total'] ?? 0, 0, ',', '.') . '</td>';
+            echo '<td class="num">$' . number_format($r['valor_a_pagar'] ?? 0, 0, ',', '.') . '</td>';
+            echo '</tr>';
+        }
+
+        // Fila para Bonificación de Tomografías si aplica
+        if ($bonificacionTomoCant > 0) {
+            echo '<tr class="boni-row">';
+            echo '<td>LIHO</td>';
+            echo '<td>BONI_TOHO</td>';
+            echo '<td>LIHO</td>';
+            echo '<td>BONIFICACION</td>';
+            echo '<td>Incentivo</td>';
+            echo '<td>' . date('Y-m-d') . '</td>';
+            echo '<td>SEDE PRINCIPAL</td>';
+            echo '<td>' . htmlspecialchars($medicoFiltro ?: 'MÉDICO LIHO') . '</td>';
+            echo '<td>BONIFICACIÓN TOMOGRAFÍAS CONTRASTADAS (' . $totalTomografiasContrastadas . ' CONTRASTADAS / ' . $bonificacionTomoCant . 'x$150.000 COP)</td>';
+            echo '<td class="cant">' . $bonificacionTomoCant . '</td>';
+            echo '<td>CT</td>';
+            echo '<td>BONIFICACIÓN</td>';
+            echo '<td class="cruzado">CRUZADO</td>';
+            echo '<td>INCENTIVO POR PRODUCTIVIDAD</td>';
+            echo '<td>N/A</td>';
+            echo '<td>LIHO IPS</td>';
+            echo '<td class="num">$0</td>';
+            echo '<td class="num">$' . number_format($bonificacionTomoValor, 0, ',', '.') . '</td>';
+            echo '</tr>';
+        }
+
+        // Fila final de Totales
+        echo '<tr class="total-row">';
+        echo '<td colspan="9" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALES (' . (count($records) + ($bonificacionTomoCant > 0 ? 1 : 0)) . ' REGISTROS):</td>';
+        echo '<td class="cant" style="font-size: 11pt; color: #047857;">' . number_format($totalCantidadEstudios + $bonificacionTomoCant, 0, ',', '.') . '</td>';
+        echo '<td colspan="6"></td>';
+        echo '<td class="num" style="font-size: 11pt;"><strong>$' . number_format($totalValorServinte, 0, ',', '.') . '</strong></td>';
+        echo '<td class="num" style="font-size: 11pt; color: #047857;"><strong>$' . number_format($totalValorPagar, 0, ',', '.') . '</strong></td>';
+        echo '</tr>';
+
+        echo '</tbody></table></body></html>';
+        exit;
+    }
+
+    // Respuesta JSON
+    header('Content-Type: application/json');
 
     echo json_encode([
         'success' => empty($errorMsg),
@@ -1728,6 +2152,7 @@ $medicosParafiscalesMap = [];
 $medicosPensionadosMap = [];
 $medicosRetencionesMap = [];
 $medicosRetencion383Map = [];
+$medicosArlMap = [];
 $parafiscalesConfigMap = [
     'IBC'     => 40.0,
     'SALUD'   => 12.5,
@@ -1749,12 +2174,13 @@ if ($connLIHOInit !== false) {
         }
     }
 
-    // Médicos con Parafiscales, Pensionados, Retenciones, Rete 383 y Modalidad Bloqueos_HO Activos
+    // Médicos con Parafiscales, Pensionados, Retenciones, Rete 383, ARL y Modalidad Bloqueos_HO Activos
     $sqlMedParaInit = "SELECT m.usuario_proteo, m.cedula, u.nombre_completo,
                               ISNULL(m.parafiscales, ISNULL(u.parafiscales, 0)) AS parafiscales,
                               ISNULL(m.pensionado, ISNULL(u.pensionado, 0)) AS pensionado,
                               ISNULL(m.retenciones, ISNULL(u.retenciones, 0)) AS retenciones,
                               ISNULL(m.retencion_art_383, ISNULL(u.retencion_art_383, 0)) AS retencion_art_383,
+                              ISNULL(m.arl, ISNULL(u.arl, 0)) AS arl,
                               ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales
                        FROM dbo.medicos m 
                        LEFT JOIN dbo.usuarios u ON m.usuario_id = u.id";
@@ -1770,6 +2196,7 @@ if ($connLIHOInit !== false) {
             $isPen  = ((int)($rME['pensionado'] ?? 0) === 1);
             $isRet  = ((int)($rME['retenciones'] ?? 0) === 1);
             $isR383 = ((int)($rME['retencion_art_383'] ?? 0) === 1);
+            $isArl  = ((int)($rME['arl'] ?? 0) === 1);
 
             $modsStr = strtoupper(trim((string)($rME['modalidades_adicionales'] ?? '')));
             $modsArr = !empty($modsStr) ? array_filter(array_map('trim', explode(',', $modsStr))) : [];
@@ -1794,6 +2221,11 @@ if ($connLIHOInit !== false) {
                 if (!empty($pUser)) $medicosRetencion383Map[$pUser] = true;
                 if (!empty($ced))   $medicosRetencion383Map[$ced] = true;
                 if (!empty($nom))   $medicosRetencion383Map[$nom] = true;
+            }
+            if ($isArl) {
+                if (!empty($pUser)) $medicosArlMap[$pUser] = true;
+                if (!empty($ced))   $medicosArlMap[$ced] = true;
+                if (!empty($nom))   $medicosArlMap[$nom] = true;
             }
 
             if ($hasBloqueoHO) {
@@ -2090,9 +2522,10 @@ usort($listaMedicos, function($a, $b) {
                                     $hasPen  = (!empty($medicosPensionadosMap[$uUpper]) || !empty($medicosPensionadosMap[$nUpper]));
                                     $hasRet  = (!empty($medicosRetencionesMap[$uUpper]) || !empty($medicosRetencionesMap[$nUpper]));
                                     $hasR383 = (!empty($medicosRetencion383Map[$uUpper]) || !empty($medicosRetencion383Map[$nUpper]));
+                                    $hasArl  = (!empty($medicosArlMap[$uUpper]) || !empty($medicosArlMap[$nUpper]));
                                 ?>
                                 <li>
-                                    <button type="button" data-value="<?php echo htmlspecialchars($m['username']); ?>" data-label="<?php echo htmlspecialchars($m['nombre']); ?>" data-parafiscales="<?php echo $hasPara ? '1' : '0'; ?>" data-pensionado="<?php echo $hasPen ? '1' : '0'; ?>" data-retenciones="<?php echo $hasRet ? '1' : '0'; ?>" data-retencion-383="<?php echo $hasR383 ? '1' : '0'; ?>"
+                                    <button type="button" data-value="<?php echo htmlspecialchars($m['username']); ?>" data-label="<?php echo htmlspecialchars($m['nombre']); ?>" data-parafiscales="<?php echo $hasPara ? '1' : '0'; ?>" data-pensionado="<?php echo $hasPen ? '1' : '0'; ?>" data-retenciones="<?php echo $hasRet ? '1' : '0'; ?>" data-retencion-383="<?php echo $hasR383 ? '1' : '0'; ?>" data-arl="<?php echo $hasArl ? '1' : '0'; ?>"
                                         class="medico-option-btn w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group">
                                         <div class="flex flex-col min-w-0 pr-2">
                                             <span class="truncate font-semibold text-slate-800 dark:text-slate-100 group-hover:text-primary dark:group-hover:text-white"><?php echo htmlspecialchars($m['nombre']); ?></span>
@@ -2105,6 +2538,9 @@ usort($listaMedicos, function($a, $b) {
                                             <?php endif; ?>
                                             <?php if ($hasPen): ?>
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 text-[9px] font-extrabold uppercase">Pensionado</span>
+                                            <?php endif; ?>
+                                            <?php if ($hasArl): ?>
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[9px] font-extrabold uppercase">ARL</span>
                                             <?php endif; ?>
                                             <?php if ($hasRet): ?>
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 text-[9px] font-extrabold uppercase">Retenciones</span>
@@ -2219,7 +2655,7 @@ usort($listaMedicos, function($a, $b) {
                 <div class="space-y-1">
                     <p class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Monto a Pagar</p>
                     <h3 id="kpiValorPagar" class="text-xl font-black font-outfit text-emerald-600 dark:text-emerald-400">$0</h3>
-                    <p class="text-[10px] text-slate-400 font-medium">Tarifario LIHO</p>
+                    <p class="text-[10px] text-slate-400 font-medium" id="kpiSubValorPagar">Tarifario LIHO</p>
                 </div>
                 <div class="p-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300">
                     <span class="material-symbols-outlined text-2xl">payments</span>
@@ -2343,6 +2779,7 @@ usort($listaMedicos, function($a, $b) {
                 </div>
                 
                 <div class="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    <div id="activeFilterBadgeContainer" class="hidden"></div>
                     <span>Mostrando <strong id="lblMostrandoCount" class="text-slate-900 dark:text-white">0</strong> registros</span>
                 </div>
             </div>
@@ -2750,25 +3187,10 @@ usort($listaMedicos, function($a, $b) {
 
                                 <div class="p-4 space-y-3">
                                     
-                                    <div id="row_ded_afc" class="flex items-center justify-between gap-2">
-                                        <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES AFC</label>
-                                        <div class="relative w-36">
-                                            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">$</span>
-                                            <input type="text" inputmode="numeric" id="ded_afc" value="0" oninput="formatInputMiles(this); recalcularLiquidacion()" 
-                                                class="w-full pl-6 pr-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-rose-500/30 outline-none">
-                                        </div>
-                                    </div>
+                                    <!-- Deducciones AFC (Ocultas / $0) -->
+                                    <input type="hidden" id="ded_afc" value="0">
 
-                                    <div id="row_ded_solidaridad" class="flex items-center justify-between gap-2">
-                                        <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES FONDO SOLIDARIDAD</label>
-                                        <div class="relative w-36">
-                                            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs">$</span>
-                                            <input type="text" inputmode="numeric" id="ded_solidaridad" value="0" oninput="formatInputMiles(this); recalcularLiquidacion()" 
-                                                class="w-full pl-6 pr-2 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-right font-mono font-bold text-slate-800 dark:text-slate-200 text-xs focus:ring-2 focus:ring-rose-500/30 outline-none">
-                                        </div>
-                                    </div>
-
-                                    <div id="row_ded_ibc" class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                                    <div id="row_ded_ibc" class="flex items-center justify-between gap-2">
                                         <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">IBC MES (ESTIMADO)</label>
                                         <div class="w-36 text-right pr-2">
                                             <span id="ded_ibc_display" class="font-mono font-black text-xs text-slate-900 dark:text-white">$ 0</span>
@@ -2797,6 +3219,27 @@ usort($listaMedicos, function($a, $b) {
                                         <div class="w-36 text-right pr-2">
                                             <span id="ded_pension_display" class="font-mono font-bold text-xs text-rose-600 dark:text-rose-400">- $ 0</span>
                                             <input type="hidden" id="ded_pension" value="0">
+                                        </div>
+                                    </div>
+
+                                    <!-- Fondo de Solidaridad (Visible únicamente si el médico tiene Parafiscales activos) -->
+                                    <div id="row_ded_solidaridad" class="hidden flex items-center justify-between gap-2 text-rose-600 dark:text-rose-400">
+                                        <div class="flex items-center gap-1.5">
+                                            <label class="text-[11px] font-medium text-slate-700 dark:text-slate-200">Fondo Solidaridad</label>
+                                            <span class="text-[9px] font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider bg-indigo-100 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800/60">Manual %</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="relative w-20">
+                                                <input type="number" id="ded_solidaridad_pct" value="0" min="0" max="100" step="0.01" placeholder="0" 
+                                                    oninput="recalcularLiquidacion(false)" 
+                                                    class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-lg pl-2 pr-5 py-1 text-slate-900 dark:text-slate-100 font-mono text-right text-xs transition outline-none"
+                                                    title="Porcentaje para Fondo de Solidaridad sobre el IBC">
+                                                <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold font-mono text-[10px] pointer-events-none">%</span>
+                                            </div>
+                                            <div class="w-28 text-right pr-2">
+                                                <span id="ded_solidaridad_display" class="font-mono font-bold text-xs text-rose-600 dark:text-rose-400">- $ 0</span>
+                                                <input type="hidden" id="ded_solidaridad" value="0">
+                                            </div>
                                         </div>
                                     </div>
 
@@ -2863,6 +3306,33 @@ usort($listaMedicos, function($a, $b) {
 
                         </div>
 
+                        <!-- Card 2.5: Novedades de Liquidación -->
+                        <div class="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800/70 rounded-2xl p-4 shadow-sm overflow-hidden relative">
+                            <div class="flex items-center justify-between gap-2">
+                                <label for="chkRegistraNovedadesLiq" class="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5 cursor-pointer select-none">
+                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-base">campaign</span>
+                                    <span>¿Registra novedades?</span>
+                                </label>
+                                <input type="checkbox" id="chkRegistraNovedadesLiq" onchange="alCambiarToggleNovedadesLiq(this)" class="w-4 h-4 text-amber-600 bg-white dark:bg-slate-800 border-amber-400 rounded focus:ring-amber-500 cursor-pointer" />
+                            </div>
+
+                            <!-- Resumen dinámico si hay novedades seleccionadas -->
+                            <div id="containerNovedadesLiqResumen" class="hidden mt-3 pt-3 border-t border-amber-200 dark:border-amber-800/60 space-y-2">
+                                <div class="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                    <span>Novedades Seleccionadas</span>
+                                    <button type="button" onclick="abrirModalNovedadesLiq()" class="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer font-bold text-[10px]">
+                                        <span class="material-symbols-outlined text-xs">edit_note</span>
+                                        <span>Modificar</span>
+                                    </button>
+                                </div>
+                                <div id="listaNovedadesLiqBadges" class="flex flex-col gap-1.5"></div>
+                                <div class="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-bold font-mono">
+                                    <span class="text-slate-500 dark:text-slate-400 font-sans text-[11px]">Neto Novedades:</span>
+                                    <span id="liqTotalNovedadesNetoDisplay" class="text-emerald-600 dark:text-emerald-400">+ $ 0</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Total Final Card (Dentro de la columna derecha) -->
                         <div class="bg-gradient-to-r from-emerald-600 to-teal-700 dark:from-teal-900 dark:to-slate-900 text-white p-5 rounded-2xl shadow-lg border border-teal-500/30 flex flex-col items-center justify-center relative overflow-hidden">
                             <p class="text-[11px] font-black uppercase tracking-widest text-emerald-200 mb-1 z-10">TOTAL A PAGAR ===&gt;&gt;&gt;</p>
@@ -2896,6 +3366,64 @@ usort($listaMedicos, function($a, $b) {
 
     </div>
 </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL CATÁLOGO DE NOVEDADES POR ENTIDAD (LIQUIDACIÓN DE TURNOS) -->
+    <!-- ========================================================================= -->
+    <div id="modalNovedadesLiq" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-amber-300 dark:border-amber-700/60 flex flex-col max-h-[90vh] overflow-hidden animate__animated animate__zoomIn animate__faster">
+            
+            <div class="px-6 py-4 border-b border-amber-200 dark:border-amber-800/60 flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                        <span class="material-symbols-outlined text-2xl">campaign</span>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black font-outfit text-slate-900 dark:text-white">Novedades de la Entidad</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" id="modalNovLiqSubhead">Catálogo de novedades disponible para esta liquidación</p>
+                    </div>
+                </div>
+                <button type="button" onclick="cerrarModalNovedadesLiq()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-xl">close</span>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+                <div id="modalNovLiqLoading" class="py-8 text-center text-slate-400">
+                    <span class="material-symbols-outlined text-3xl animate-spin text-amber-500 mb-2">sync</span>
+                    <p class="text-xs font-semibold">Consultando catálogo de novedades de la entidad...</p>
+                </div>
+
+                <div id="modalNovLiqEmpty" class="hidden py-8 text-center text-slate-400">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2">info</span>
+                    <p class="text-xs font-semibold">No hay novedades activas configuradas para esta entidad en el Maestro de Novedades.</p>
+                    <a href="maestro_novedades.php" target="_blank" class="mt-2 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline font-bold">
+                        <span class="material-symbols-outlined text-xs">open_in_new</span> Ir al Maestro de Novedades
+                    </a>
+                </div>
+
+                <div id="modalNovLiqCards" class="hidden space-y-3">
+                    <!-- Dinámico: cards con checkbox, código, nombre, tipo, input de valor e input de observación -->
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50">
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                    <span id="modalNovLiqSeleccionadasCount" class="font-bold text-amber-600 dark:text-amber-400 font-mono">0</span> novedad(es) seleccionada(s)
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="cerrarModalNovedadesLiq()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                        Cancelar
+                    </button>
+                    <button type="button" onclick="aplicarNovedadesALiquidacion()" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-md shadow-amber-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer">
+                        <span class="material-symbols-outlined text-base">check_circle</span>
+                        <span>Aplicar a la Liquidación</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
 
 <style>
 @media print {
@@ -3324,10 +3852,12 @@ usort($listaMedicos, function($a, $b) {
         window.medicosPensionadosMap = <?php echo json_encode($medicosPensionadosMap); ?>;
         window.medicosRetencionesMap = <?php echo json_encode($medicosRetencionesMap); ?>;
         window.medicosRetencion383Map = <?php echo json_encode($medicosRetencion383Map); ?>;
+        window.medicosArlMap = <?php echo json_encode($medicosArlMap); ?>;
         window.currentMedicoHasParafiscales = false;
         window.currentMedicoIsPensionado = false;
         window.currentMedicoHasRetenciones = false;
         window.currentMedicoHasRetencion383 = false;
+        window.currentMedicoHasArl = false;
 
         // --- GESTIÓN DE SELECCIÓN Y EXCLUSIÓN JUSTIFICADA DE REGISTROS ---
         let selectedIds = new Set();
@@ -3887,23 +4417,235 @@ usort($listaMedicos, function($a, $b) {
             const itemsToExport = allData.filter(item => selectedIds.has(item.unique_id || item.id));
             if (itemsToExport.length === 0) return;
 
+            // Métricas y contadores de los seleccionados
+            let totalRegs = itemsToExport.length;
+            let totalCantidad = 0;
+            let totalValorServinte = 0;
+            let totalValorPagar = 0;
+            let totalCruzados = 0;
+            let totalSoloProteo = 0;
+            let totalSoloServinte = 0;
+            let cruzadosValServ = 0, cruzadosValPag = 0;
+            let soloProtValServ = 0, soloProtValPag = 0;
+            let soloServValServ = 0, soloServValPag = 0;
+            let totalTomosContrastadas = 0;
+            const conceptosMap = {};
+
+            itemsToExport.forEach(r => {
+                const s = r.servinte || (r.servinte_unmatched || {});
+                const cant = Math.max(1, parseInt(r.cantidad || 1, 10));
+                const vServ = parseFloat(s.total || 0);
+                const vPag = parseFloat(r.valor_a_pagar || 0);
+
+                totalCantidad += cant;
+                totalValorServinte += vServ;
+                totalValorPagar += vPag;
+
+                if (r.cruce === 'CRUZADO') {
+                    totalCruzados++;
+                    cruzadosValServ += vServ;
+                    cruzadosValPag += vPag;
+                } else if (r.cruce === 'SOLO_PROTEO') {
+                    totalSoloProteo++;
+                    soloProtValServ += vServ;
+                    soloProtValPag += vPag;
+                } else if (r.cruce === 'SOLO_SERVINTE') {
+                    totalSoloServinte++;
+                    soloServValServ += vServ;
+                    soloServValPag += vPag;
+                }
+
+                if (r.es_tomografia_contrastada) {
+                    totalTomosContrastadas += cant;
+                }
+
+                const cKey = r.concepto || 'OTROS';
+                const cNom = r.concepto_nombre || cKey;
+                if (!conceptosMap[cKey]) {
+                    conceptosMap[cKey] = { codigo: cKey, nombre: cNom, cantidad: 0, registros: 0, valor_examen: 0, valor_pagar: 0 };
+                }
+                conceptosMap[cKey].cantidad += cant;
+                conceptosMap[cKey].registros += 1;
+                conceptosMap[cKey].valor_examen += vServ;
+                conceptosMap[cKey].valor_pagar += vPag;
+            });
+
+            // Bonificación por Tomografías Contrastadas
+            const boniTomoCant = Math.floor(totalTomosContrastadas / 50);
+            const boniTomoValor = boniTomoCant * 150000;
+            if (boniTomoCant > 0) {
+                totalValorPagar += boniTomoValor;
+                conceptosMap['BONI_TOHO'] = {
+                    codigo: 'BONI_TOHO',
+                    nombre: 'Bonificación Tomografías Contrastadas (Regla 50x$150.000)',
+                    cantidad: boniTomoCant,
+                    registros: 1,
+                    valor_examen: 0,
+                    valor_pagar: boniTomoValor,
+                    es_bonificacion: true
+                };
+            }
+
+            const conceptosList = Object.values(conceptosMap).sort((a, b) => b.cantidad - a.cantidad);
+            const pctPagoTotal = totalValorServinte > 0 ? ((totalValorPagar / totalValorServinte) * 100).toFixed(1) : '0.0';
+            const entidadNombre = <?php echo json_encode($entidadActivaNombre); ?>;
+
             let tableHtml = `
                 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
                 <head>
                     <meta charset="utf-8"/>
                     <style>
-                        table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 12px; }
-                        th { background: #0f172a; color: white; padding: 8px; border: 1px solid #cbd5e1; font-weight: bold; }
-                        td { padding: 6px; border: 1px solid #cbd5e1; }
-                        .num { text-align: right; }
-                        .cruzado { background: #dcfce7; color: #166534; font-weight: bold; }
-                        .solo-proteo { background: #fee2e2; color: #991b1b; font-weight: bold; }
-                        .solo-servinte { background: #e0f2fe; color: #0369a1; font-weight: bold; }
+                        body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
+                        table { border-collapse: collapse; margin-bottom: 20px; width: 100%; }
+                        th { background-color: #0f172a; color: #ffffff; padding: 7px 10px; border: 1px solid #94a3b8; font-weight: bold; font-size: 10pt; text-align: left; }
+                        td { padding: 6px 9px; border: 1px solid #cbd5e1; font-size: 10pt; vertical-align: middle; }
+                        .th-sub { background-color: #1e293b; color: #ffffff; font-weight: bold; padding: 6px 10px; border: 1px solid #475569; font-size: 10pt; }
+                        .th-cant { background-color: #047857; color: #ffffff; font-weight: bold; text-align: center; }
+                        .title-main { font-size: 15pt; font-weight: bold; color: #0f172a; padding: 4px 0; }
+                        .title-sub { font-size: 10pt; color: #475569; }
+                        .section-header { font-size: 12pt; font-weight: bold; color: #0f172a; margin-top: 15px; margin-bottom: 6px; }
+                        .kpi-title { background-color: #0f172a; color: #f8fafc; font-weight: bold; text-align: center; font-size: 9pt; padding: 6px 4px; }
+                        .kpi-val { background-color: #f8fafc; font-weight: bold; font-size: 13pt; text-align: center; color: #0f172a; padding: 8px 4px; }
+                        .kpi-sub { background-color: #f1f5f9; font-size: 8pt; text-align: center; color: #64748b; padding: 4px; }
+                        .kpi-bono-val { background-color: #fefce8; color: #a16207; font-weight: bold; font-size: 12pt; text-align: center; padding: 8px 4px; }
+                        .total-row { background-color: #e2e8f0; font-weight: bold; border-top: 2px solid #0f172a; }
+                        .cruzado { background-color: #dcfce7; color: #166534; font-weight: bold; text-align: center; }
+                        .solo-proteo { background-color: #fee2e2; color: #991b1b; font-weight: bold; text-align: center; }
+                        .solo-servinte { background-color: #e0f2fe; color: #0369a1; font-weight: bold; text-align: center; }
+                        .boni-row { background-color: #fef9c3; font-weight: bold; }
+                        .num { text-align: right; mso-number-format: "\\$#,##0"; }
+                        .cant { text-align: center; font-weight: bold; mso-number-format: "#,##0"; }
+                        .pct { text-align: right; mso-number-format: "0\\.0%"; }
+                        .center { text-align: center; }
                     </style>
                 </head>
                 <body>
-                    <h2>Reporte de Exámenes Seleccionados (${itemsToExport.length} registros) - LIHO IPS</h2>
-                    <p><strong>Fecha de Generación:</strong> ${new Date().toLocaleString()}</p>
+                    <!-- 1. Encabezado principal -->
+                    <table style="border: none; margin-bottom: 12px;">
+                        <tr><td colspan="18" class="title-main" style="border: none;">REPORTE DE EXÁMENES SELECCIONADOS (PROTEO VS SERVINTE)</td></tr>
+                        <tr><td colspan="18" class="title-sub" style="border: none;"><strong>Entidad / IPS:</strong> ${htmlspecialchars(entidadNombre)} &nbsp;|&nbsp; <strong>Fecha de Generación:</strong> ${new Date().toLocaleString('es-CO')}</td></tr>
+                        <tr><td colspan="18" class="title-sub" style="border: none;"><strong>Total Registros Seleccionados:</strong> ${totalRegs}</td></tr>
+                    </table>
+
+                    <!-- 2. Tarjetas / Bloque de Contadores Generales (KPIs) -->
+                    <table style="border: 1px solid #cbd5e1; margin-bottom: 18px;">
+                        <tr>
+                            <th class="kpi-title" style="width: 16%;">TOTAL REGISTROS</th>
+                            <th class="kpi-title" style="width: 16%;">TOTAL CANTIDAD ESTUDIOS</th>
+                            <th class="kpi-title" style="width: 17%;">MONTO EXAMEN (SERVINTE)</th>
+                            <th class="kpi-title" style="width: 17%;">MONTO A PAGAR (TARIFARIO)</th>
+                            <th class="kpi-title" style="width: 14%;">% MONTO A PAGAR</th>
+                            <th class="kpi-title" style="width: 20%;">BONIFICACIÓN TAC CONTRASTADAS</th>
+                        </tr>
+                        <tr>
+                            <td class="kpi-val">${totalRegs.toLocaleString('es-CO')}</td>
+                            <td class="kpi-val cant" style="color: #047857; font-size: 13pt;">${totalCantidad.toLocaleString('es-CO')}</td>
+                            <td class="kpi-val num" style="font-size: 13pt;">$${Math.round(totalValorServinte).toLocaleString('es-CO')}</td>
+                            <td class="kpi-val num" style="color: #047857; font-size: 13pt;">$${Math.round(totalValorPagar).toLocaleString('es-CO')}</td>
+                            <td class="kpi-val pct" style="font-size: 13pt;">${pctPagoTotal}%</td>
+                            <td class="kpi-bono-val">
+                                ${boniTomoCant > 0 
+                                    ? `${boniTomoCant} bono(s) (+$${boniTomoValor.toLocaleString('es-CO')})<br/><span style="font-size: 8pt; font-weight: normal; color: #854d0e;">(${totalTomosContrastadas} Contrastadas acumuladas)</span>`
+                                    : `0 bonos ($0)<br/><span style="font-size: 8pt; font-weight: normal; color: #64748b;">(${totalTomosContrastadas}/50 Contrastadas)</span>`}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="kpi-sub">Registros Seleccionados</td>
+                            <td class="kpi-sub">Unidades Totales Seleccionadas</td>
+                            <td class="kpi-sub">Facturado en Servinte</td>
+                            <td class="kpi-sub">Tarifario LIHO + Bonos</td>
+                            <td class="kpi-sub">Sobre Facturación Servinte</td>
+                            <td class="kpi-sub">Regla: Cada 50 TAC Contrastadas = $150.000 COP</td>
+                        </tr>
+                    </table>
+
+                    <!-- 3. Resumen por Concepto / Modalidad -->
+                    <p class="section-header">RESUMEN POR CONCEPTO / MODALIDAD (CONTADORES Y MONTOS)</p>
+                    <table style="border: 1px solid #cbd5e1; margin-bottom: 18px;">
+                        <thead>
+                            <tr>
+                                <th class="th-sub" style="width: 28%;">Concepto / Modalidad</th>
+                                <th class="th-sub center" style="width: 10%;">Código</th>
+                                <th class="th-sub center" style="width: 14%; background-color: #047857;">Cantidad de Estudios</th>
+                                <th class="th-sub center" style="width: 12%;">N° Registros</th>
+                                <th class="th-sub" style="width: 18%; text-align: right;">Monto Facturado Servinte</th>
+                                <th class="th-sub" style="width: 18%; text-align: right;">Monto a Pagar (Tarifario)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            conceptosList.forEach(c => {
+                const isBoni = !!c.es_bonificacion;
+                tableHtml += `
+                    <tr class="${isBoni ? 'boni-row' : ''}">
+                        <td><strong>${htmlspecialchars(c.nombre)}</strong></td>
+                        <td class="center">${htmlspecialchars(c.codigo)}</td>
+                        <td class="cant">${c.cantidad.toLocaleString('es-CO')}</td>
+                        <td class="center">${c.registros.toLocaleString('es-CO')}</td>
+                        <td class="num">$${Math.round(c.valor_examen).toLocaleString('es-CO')}</td>
+                        <td class="num">$${Math.round(c.valor_pagar).toLocaleString('es-CO')}</td>
+                    </tr>
+                `;
+            });
+
+            tableHtml += `
+                            <tr class="total-row">
+                                <td colspan="2"><strong>TOTALES CONSOLIDADOS POR CONCEPTO</strong></td>
+                                <td class="cant" style="font-size: 11pt;">${(totalCantidad + boniTomoCant).toLocaleString('es-CO')}</td>
+                                <td class="center" style="font-size: 11pt;">${(totalRegs + (boniTomoCant > 0 ? 1 : 0)).toLocaleString('es-CO')}</td>
+                                <td class="num" style="font-size: 11pt;"><strong>$${Math.round(totalValorServinte).toLocaleString('es-CO')}</strong></td>
+                                <td class="num" style="font-size: 11pt; color: #047857;"><strong>$${Math.round(totalValorPagar).toLocaleString('es-CO')}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 4. Resumen por Estado de Conciliación -->
+                    <p class="section-header">RESUMEN POR ESTADO DE CONCILIACIÓN (CRUCE)</p>
+                    <table style="border: 1px solid #cbd5e1; margin-bottom: 22px;">
+                        <thead>
+                            <tr>
+                                <th class="th-sub" style="width: 30%;">Estado de Cruce</th>
+                                <th class="th-sub center" style="width: 14%;">N° Registros</th>
+                                <th class="th-sub center" style="width: 14%;">% Registros</th>
+                                <th class="th-sub" style="width: 21%; text-align: right;">Monto Facturado Servinte</th>
+                                <th class="th-sub" style="width: 21%; text-align: right;">Monto a Pagar (Tarifario)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="cruzado" style="padding: 2px 8px; border-radius: 4px;">CRUZADO (Proteo + Servinte)</span></td>
+                                <td class="center"><strong>${totalCruzados.toLocaleString('es-CO')}</strong></td>
+                                <td class="pct">${totalRegs > 0 ? ((totalCruzados / totalRegs) * 100).toFixed(1) : '0.0'}%</td>
+                                <td class="num">$${Math.round(cruzadosValServ).toLocaleString('es-CO')}</td>
+                                <td class="num">$${Math.round(cruzadosValPag).toLocaleString('es-CO')}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="solo-proteo" style="padding: 2px 8px; border-radius: 4px;">SOLO PROTEO (Sin Servinte)</span></td>
+                                <td class="center"><strong>${totalSoloProteo.toLocaleString('es-CO')}</strong></td>
+                                <td class="pct">${totalRegs > 0 ? ((totalSoloProteo / totalRegs) * 100).toFixed(1) : '0.0'}%</td>
+                                <td class="num">$${Math.round(soloProtValServ).toLocaleString('es-CO')}</td>
+                                <td class="num">$${Math.round(soloProtValPag).toLocaleString('es-CO')}</td>
+                            </tr>
+                            <tr>
+                                <td><span class="solo-servinte" style="padding: 2px 8px; border-radius: 4px;">SOLO SERVINTE (Sin Proteo)</span></td>
+                                <td class="center"><strong>${totalSoloServinte.toLocaleString('es-CO')}</strong></td>
+                                <td class="pct">${totalRegs > 0 ? ((totalSoloServinte / totalRegs) * 100).toFixed(1) : '0.0'}%</td>
+                                <td class="num">$${Math.round(soloServValServ).toLocaleString('es-CO')}</td>
+                                <td class="num">$${Math.round(soloServValPag).toLocaleString('es-CO')}</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td><strong>TOTALES CONCILIACIÓN</strong></td>
+                                <td class="center"><strong>${totalRegs.toLocaleString('es-CO')}</strong></td>
+                                <td class="pct"><strong>100.0%</strong></td>
+                                <td class="num"><strong>$${Math.round(totalValorServinte).toLocaleString('es-CO')}</strong></td>
+                                <td class="num"><strong>$${Math.round(cruzadosValPag + soloProtValPag + soloServValPag).toLocaleString('es-CO')}</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 5. Tabla Detallada con Columna Cantidad -->
+                    <p class="section-header">DETALLE COMPLETO DE PROCEDIMIENTOS Y EXÁMENES</p>
                     <table>
                         <thead>
                             <tr>
@@ -3916,14 +4658,15 @@ usort($listaMedicos, function($a, $b) {
                                 <th>Sede</th>
                                 <th>Médico (Proteo)</th>
                                 <th>CUPS / Examen</th>
+                                <th class="th-cant">Cantidad</th>
                                 <th>Modalidad</th>
                                 <th>Estado Proteo / Servinte</th>
                                 <th>Estado Cruce</th>
                                 <th>Paciente</th>
                                 <th>Identificación</th>
                                 <th>Entidad (EPS)</th>
-                                <th>Valor del Examen</th>
-                                <th>Valor a Pagar (Tarifario)</th>
+                                <th style="text-align: right;">Valor del Examen</th>
+                                <th style="text-align: right;">Valor a Pagar (Tarifario)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -3936,8 +4679,15 @@ usort($listaMedicos, function($a, $b) {
                 const tipoPacDisp = (tipoPacRaw === 'P' || tipoPacRaw === 'PARTICULAR') ? 'Particular' : 'Empresa';
                 const docVal = r.documento || (s.identificacion ? `${s.tipo_doc || ''} ${s.identificacion}` : '');
                 const pacVal = r.nombre || (s.paciente || 'N/A');
-                const valExamen = (s && s.total !== undefined) ? `$${Number(s.total || 0).toLocaleString('es-CO')}` : '-';
-                const valPagar = `$${Number(r.valor_a_pagar || 0).toLocaleString('es-CO')}`;
+                const valExamen = (s && s.total !== undefined) ? `$${Math.round(Number(s.total || 0)).toLocaleString('es-CO')}` : '$0';
+                const valPagar = `$${Math.round(Number(r.valor_a_pagar || 0)).toLocaleString('es-CO')}`;
+                const cantItem = Math.max(1, parseInt(r.cantidad || 1, 10));
+
+                let modText = r.modalidad || '';
+                if (r.es_bloqueo_ho) {
+                    const tLbl = r.bloqueo_tier_label ? r.bloqueo_tier_label + ' - ' : '';
+                    modText = `BLOQUEO HO (${tLbl}${r.bloqueo_pct || 40}%)`;
+                }
 
                 tableHtml += `
                     <tr>
@@ -3950,7 +4700,8 @@ usort($listaMedicos, function($a, $b) {
                         <td>${htmlspecialchars(r.sede || '')}</td>
                         <td>${htmlspecialchars(r.usuario || '')}</td>
                         <td>${htmlspecialchars(r.cups || '')}</td>
-                        <td>${htmlspecialchars(r.es_bloqueo_ho ? `BLOQUEO HO (${r.bloqueo_tier_label ? r.bloqueo_tier_label + ' - ' : ''}${r.bloqueo_pct || 40}%)` : (r.modalidad || ''))}</td>
+                        <td class="cant">${cantItem}</td>
+                        <td>${htmlspecialchars(modText)}</td>
                         <td>${htmlspecialchars(r.estado_actual || '')}</td>
                         <td class="${cruceClass}">${htmlspecialchars(r.cruce || '')}</td>
                         <td>${htmlspecialchars(pacVal)}</td>
@@ -3962,7 +4713,39 @@ usort($listaMedicos, function($a, $b) {
                 `;
             });
 
+            if (boniTomoCant > 0) {
+                tableHtml += `
+                    <tr class="boni-row">
+                        <td>LIHO</td>
+                        <td>BONI_TOHO</td>
+                        <td>LIHO</td>
+                        <td>BONIFICACION</td>
+                        <td>Incentivo</td>
+                        <td>${new Date().toISOString().substring(0, 10)}</td>
+                        <td>SEDE PRINCIPAL</td>
+                        <td>MÉDICO LIHO</td>
+                        <td>BONIFICACIÓN TOMOGRAFÍAS CONTRASTADAS (${totalTomosContrastadas} CONTRASTADAS / ${boniTomoCant}x$150.000 COP)</td>
+                        <td class="cant">${boniTomoCant}</td>
+                        <td>CT</td>
+                        <td>BONIFICACIÓN</td>
+                        <td class="cruzado">CRUZADO</td>
+                        <td>INCENTIVO POR PRODUCTIVIDAD</td>
+                        <td>N/A</td>
+                        <td>LIHO IPS</td>
+                        <td class="num">$0</td>
+                        <td class="num">$${boniTomoValor.toLocaleString('es-CO')}</td>
+                    </tr>
+                `;
+            }
+
             tableHtml += `
+                            <tr class="total-row">
+                                <td colspan="9" style="text-align: right; font-weight: bold; font-size: 11pt;">TOTALES (${(totalRegs + (boniTomoCant > 0 ? 1 : 0))} REGISTROS):</td>
+                                <td class="cant" style="font-size: 11pt; color: #047857;">${(totalCantidad + boniTomoCant).toLocaleString('es-CO')}</td>
+                                <td colspan="6"></td>
+                                <td class="num" style="font-size: 11pt;"><strong>$${Math.round(totalValorServinte).toLocaleString('es-CO')}</strong></td>
+                                <td class="num" style="font-size: 11pt; color: #047857;"><strong>$${Math.round(totalValorPagar).toLocaleString('es-CO')}</strong></td>
+                            </tr>
                         </tbody>
                     </table>
                 </body>
@@ -4227,6 +5010,9 @@ usort($listaMedicos, function($a, $b) {
             const elValPagar = document.getElementById('kpiValorPagar');
             if (elValPagar) elValPagar.textContent = `$${totalPagarFmt}`;
 
+            const elSubValPagar = document.getElementById('kpiSubValorPagar');
+            if (elSubValPagar) elSubValPagar.textContent = 'Tarifario LIHO';
+
             const pctGlobal = (kpis.porcentaje_pago_examen !== undefined) 
                 ? Number(kpis.porcentaje_pago_examen).toFixed(1) 
                 : (kpis.total_valor > 0 ? ((kpis.total_valor_pagar / kpis.total_valor) * 100).toFixed(1) : '0.0');
@@ -4317,6 +5103,27 @@ usort($listaMedicos, function($a, $b) {
             
             const elPctPagar = document.getElementById('kpiPorcentajePagar');
             if (elPctPagar) elPctPagar.textContent = `${pctPagarFiltrado}%`;
+
+            const elSubValPagar = document.getElementById('kpiSubValorPagar');
+            if (elSubValPagar) {
+                if (allData.length > 0 && filteredData.length < allData.length) {
+                    const totalGeneralPagar = allData.reduce((sum, item) => sum + (item.valor_a_pagar || 0), 0);
+                    elSubValPagar.innerHTML = `<span class="text-amber-600 dark:text-amber-400 font-bold">Filtrado (${filteredData.length.toLocaleString()} reg.)</span> • Total: $${totalGeneralPagar.toLocaleString('es-CO')}`;
+                } else {
+                    elSubValPagar.textContent = 'Tarifario LIHO';
+                }
+            }
+
+            const badgeContainer = document.getElementById('activeFilterBadgeContainer');
+            if (badgeContainer) {
+                if (filtroConceptoActual !== '') {
+                    badgeContainer.classList.remove('hidden');
+                    badgeContainer.innerHTML = `<button type="button" onclick="filtrarPorConcepto('${filtroConceptoActual}')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[11px] font-bold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors cursor-pointer shadow-xs" title="Clic para quitar filtro de concepto"><span>Concepto: ${filtroConceptoActual}</span><span class="material-symbols-outlined text-xs">close</span></button>`;
+                } else {
+                    badgeContainer.classList.add('hidden');
+                    badgeContainer.innerHTML = '';
+                }
+            }
 
             let totalExcluidosVal = 0;
             allData.forEach(item => {
@@ -5101,9 +5908,9 @@ usort($listaMedicos, function($a, $b) {
             ` : '';
 
             const contrastadaBadge = item.es_tomografia_contrastada ? `
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80 shadow-xs mr-1" title="Tomografía (Aplica bono de $150.000 por cada 50 tomografías para todos los médicos y entidades)">
-                    <span class="material-symbols-outlined text-[10px] leading-none text-amber-600 dark:text-amber-400">military_tech</span>
-                    <span>TOMOGRAFÍA (BONO 50)</span>
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-black tracking-wider uppercase bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-200 border border-amber-300 dark:border-amber-700/80 shadow-xs mr-1" title="Tomografía Contrastada (Aplica bono de $150.000 por cada 50 tomografías contrastadas)">
+                    <span class="material-symbols-outlined text-[10px] text-amber-600 dark:text-amber-400">military_tech</span>
+                    Contrastada (Bono 50x$150K)
                 </span>
             ` : '';
 
@@ -5243,6 +6050,13 @@ usort($listaMedicos, function($a, $b) {
             const entActivaNit    = <?php echo json_encode($entidadActivaNit ?: ''); ?>;
             const entActivaId     = <?php echo json_encode($entidadActivaId ?: 'PROPIO'); ?>;
 
+            window.novedadesLiquidacionAplicadas = [];
+            window.currentEntidadIdLiq = entActivaId || 'PROPIO';
+            window.currentEntidadNombreLiq = entActivaNombre;
+            const chkNov = document.getElementById('chkRegistraNovedadesLiq');
+            if (chkNov) chkNov.checked = false;
+            actualizarResumenBadgesNovedadesLiq();
+
             const elEmpresaLabel = document.getElementById('liqEmpresaLabel');
             if (elEmpresaLabel) elEmpresaLabel.textContent = entActivaNombre;
 
@@ -5323,13 +6137,41 @@ usort($listaMedicos, function($a, $b) {
                     };
                 }
 
-                let conceptoKey = '61251001-HONORARIOS MED RX SIMPLES';
-                if (item.cups && (item.cups.toLowerCase().includes('eco') || item.cups.toLowerCase().includes('ultrasonido'))) {
-                    conceptoKey = '61251002-HONORARIOS MED ECOGRAFIAS';
+                // Clasificación Dinámica de Servicio / Concepto
+                let conceptoKey = '';
+                const itemNom = ((item.nombre_examen || '') + ' ' + (item.cups || '')).toUpperCase();
+                const itemCupsNum = (item.cups || '').replace(/[^0-9]/g, '');
+
+                if (item.servicio && item.servicio.trim() !== '') {
+                    conceptoKey = item.servicio.trim().toUpperCase();
+                } else if (item.concepto === 'RXES' || item.cuenta_contable === '61251002' || itemNom.includes('ESPECIAL')) {
+                    conceptoKey = 'RX ESPECIALES';
+                } else if (item.concepto === 'DOPP' || itemNom.includes('DOPP') || itemCupsNum.startsWith('882')) {
+                    conceptoKey = 'DOPPLER';
+                } else if (item.concepto === 'ECOG' || itemNom.includes('ECO') || itemNom.includes('ULTRASO') || itemCupsNum.startsWith('881')) {
+                    conceptoKey = 'ECOGRAFÍAS';
+                } else if (item.concepto === 'TOHO' || item.cuenta_contable === '61251007' || itemNom.includes('TOMO') || itemNom.includes('TAC') || itemCupsNum.startsWith('879')) {
+                    conceptoKey = 'TOMOGRAFÍAS';
+                } else if (item.concepto === 'MAMO' || item.cuenta_contable === '61251006' || itemNom.includes('MAMO') || itemNom.includes('SENO') || itemCupsNum.startsWith('8768')) {
+                    conceptoKey = 'MAMOGRAFÍAS';
+                } else if (item.concepto === 'BIOP' || itemNom.includes('BIOP') || itemNom.includes('BIO') || itemNom.includes('BACAF')) {
+                    conceptoKey = 'BIOPSIAS';
+                } else if (item.concepto === 'BLOQ' || itemNom.includes('BLOQUEO')) {
+                    conceptoKey = 'BLOQUEOS';
+                } else if (item.concepto === 'RESO' || itemNom.includes('RESONAN') || itemNom.includes('RMN') || itemCupsNum.startsWith('883')) {
+                    conceptoKey = 'RESONANCIAS';
+                } else if (item.concepto === 'RXSI' || item.cuenta_contable === '61251001' || itemNom.includes('RAYOS X') || itemNom.includes('RADIOGRAF') || itemNom.includes('RX')) {
+                    conceptoKey = 'RX SIMPLE';
+                } else if (item.concepto_nombre && item.concepto_nombre.trim() !== '') {
+                    conceptoKey = item.concepto_nombre.trim().toUpperCase();
+                } else if (item.concepto && item.concepto.trim() !== '') {
+                    conceptoKey = item.concepto.trim().toUpperCase();
                 } else if (item.servinte && item.servinte.concepto) {
-                    conceptoKey = item.servinte.concepto;
+                    conceptoKey = item.servinte.concepto.toUpperCase();
                 } else if (item.cups) {
                     conceptoKey = item.cups.length > 35 ? item.cups.substring(0, 35) + '...' : item.cups;
+                } else {
+                    conceptoKey = 'OTROS PROCEDIMIENTOS';
                 }
 
                 const cant = 1; // Conteo estricto por número de registros
@@ -5397,7 +6239,7 @@ usort($listaMedicos, function($a, $b) {
 
                 const boniKey = '61251007-BONIFICACION TOMOGRAFIAS';
                 sedesMap[sedeMayorTomo].conceptos[boniKey] = {
-                    nombre: `BONIFICACIÓN TOMOGRAFÍAS (${totalTomosContrastadasSels} TOMOGRAFÍAS / ${cantBonificaciones}x$150.000 COP)`,
+                    nombre: `BONIFICACIÓN TOMOGRAFÍAS CONTRASTADAS (${totalTomosContrastadasSels} CONTRASTADAS / ${cantBonificaciones}x$150.000 COP)`,
                     cant: cantBonificaciones,
                     valor: valorBonificacionTotal,
                     cruzadoCant: cantBonificaciones,
@@ -5493,15 +6335,15 @@ usort($listaMedicos, function($a, $b) {
 
                     const cardSedeHtml = `
                         <div class="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 shadow-xs">
-                            <div class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 cursor-pointer transition-colors py-1.5 px-3 border-b border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 font-outfit uppercase flex items-center justify-between gap-2 group" onclick="mostrarInformeExamenesSedePreview('${htmlspecialchars(sObj.nombre)}')">
-                                <span class="truncate flex items-center gap-1.5">
+                            <div class="bg-primary hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700/80 cursor-pointer transition-colors py-2 px-3.5 border-b border-primary/20 dark:border-slate-700 font-bold text-xs text-white font-outfit uppercase flex items-center justify-between gap-2 group" onclick="mostrarInformeExamenesSedePreview('${htmlspecialchars(sObj.nombre)}')">
+                                <span class="truncate flex items-center gap-1.5 text-white">
                                     <i class="fa-solid fa-building text-tertiary"></i>
-                                    ${htmlspecialchars(sObj.nombre)}
+                                    <span>${htmlspecialchars(sObj.nombre)}</span>
                                 </span>
                                 <div class="flex items-center gap-2">
                                     ${warningBadgeHeader}
-                                    <span class="text-[10px] text-tertiary group-hover:underline font-extrabold flex items-center gap-1">
-                                        <span>Ver informe</span>
+                                    <span class="text-[10px] text-tertiary group-hover:text-white group-hover:underline font-extrabold flex items-center gap-1">
+                                        <span>VER INFORME</span>
                                         <i class="fa-solid fa-arrow-right text-[9px]"></i>
                                     </span>
                                 </div>
@@ -5510,7 +6352,7 @@ usort($listaMedicos, function($a, $b) {
                                 <table class="w-full text-left border-collapse">
                                     <thead>
                                         <tr class="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
-                                            <th class="py-1.5 px-2">CENTRO DE COSTO</th>
+                                            <th class="py-1.5 px-2">SERVICIO / CONCEPTO</th>
                                             <th class="py-1.5 px-2 text-right">CANT</th>
                                             <th class="py-1.5 px-2 text-right">VALOR</th>
                                         </tr>
@@ -5601,11 +6443,12 @@ usort($listaMedicos, function($a, $b) {
                 }
             }
 
-            // Determinar si el médico liquidado tiene Parafiscales activos, si es Pensionado, Retenciones o Retención Art 383
+            // Determinar si el médico liquidado tiene Parafiscales activos, si es Pensionado, Retenciones, Retención Art 383 o ARL
             let hasParafiscales  = false;
             let isPensionado     = false;
             let hasRetenciones   = false;
             let hasRetencion383  = false;
+            let hasArl           = false;
 
             if (medicoVal) {
                 const uVal = String(medicoVal).trim().toUpperCase();
@@ -5622,6 +6465,9 @@ usort($listaMedicos, function($a, $b) {
                 if (window.medicosRetencion383Map && (window.medicosRetencion383Map[uVal] || window.medicosRetencion383Map[uNom])) {
                     hasRetencion383 = true;
                 }
+                if (window.medicosArlMap && (window.medicosArlMap[uVal] || window.medicosArlMap[uNom])) {
+                    hasArl = true;
+                }
             }
             const selectedBtn = document.querySelector(`.medico-option-btn[data-value="${medicoVal}"]`);
             if (selectedBtn) {
@@ -5629,6 +6475,7 @@ usort($listaMedicos, function($a, $b) {
                 if (selectedBtn.getAttribute('data-pensionado') === '1') isPensionado = true;
                 if (selectedBtn.getAttribute('data-retenciones') === '1') hasRetenciones = true;
                 if (selectedBtn.getAttribute('data-retencion-383') === '1') hasRetencion383 = true;
+                if (selectedBtn.getAttribute('data-arl') === '1') hasArl = true;
             }
             if (dataToProcess && dataToProcess.length > 0) {
                 const primerMedico = (dataToProcess[0].usuario_medico || dataToProcess[0].usuario || '').trim().toUpperCase();
@@ -5645,20 +6492,23 @@ usort($listaMedicos, function($a, $b) {
                 if (!hasRetencion383 && window.medicosRetencion383Map && (window.medicosRetencion383Map[primerMedico] || window.medicosRetencion383Map[primerNom])) {
                     hasRetencion383 = true;
                 }
+                if (!hasArl && window.medicosArlMap && (window.medicosArlMap[primerMedico] || window.medicosArlMap[primerNom])) {
+                    hasArl = true;
+                }
             }
 
-            // Exclusividad: solo una de las dos modalidades o ninguna
             // Exclusividad: solo una de las dos modalidades o ninguna
             if (hasRetenciones && hasRetencion383) {
                 hasRetencion383 = false;
             }
 
-            const hasAnyDeductionActive = (hasParafiscales || isPensionado || hasRetenciones || hasRetencion383);
+            const hasAnyDeductionActive = (hasParafiscales || isPensionado || hasRetenciones || hasRetencion383 || hasArl);
 
             window.currentMedicoHasParafiscales  = hasParafiscales;
             window.currentMedicoIsPensionado     = isPensionado;
             window.currentMedicoHasRetenciones   = hasRetenciones;
             window.currentMedicoHasRetencion383  = hasRetencion383;
+            window.currentMedicoHasArl           = hasArl;
             window.currentMedicoHasAnyDeduction  = hasAnyDeductionActive;
 
             const ibcPct     = (window.parafiscalesConfig && window.parafiscalesConfig.IBC !== undefined) ? Number(window.parafiscalesConfig.IBC) : 40.0;
@@ -5666,7 +6516,7 @@ usort($listaMedicos, function($a, $b) {
             const pensionPct = (window.parafiscalesConfig && window.parafiscalesConfig.PENSION !== undefined) ? Number(window.parafiscalesConfig.PENSION) : 16.0;
             const arlPct     = (window.parafiscalesConfig && window.parafiscalesConfig.ARL !== undefined) ? Number(window.parafiscalesConfig.ARL) : 2.436;
 
-            const aplicaSeguridadSocial = (hasParafiscales || isPensionado);
+            const aplicaSeguridadSocial = (hasParafiscales || isPensionado || hasArl);
 
             // Actualizar distintivo visual en la tarjeta de deducciones
             const badgeDot       = document.getElementById('liqParafiscalesDot');
@@ -5682,14 +6532,19 @@ usort($listaMedicos, function($a, $b) {
                     if (badgeDot && badgeLbl) {
                         if (isPensionado) {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-indigo-500 animate-pulse';
-                            badgeLbl.textContent = 'Médico Pensionado (Salud y ARL)';
+                            badgeLbl.textContent = hasArl ? 'Médico Pensionado (Salud y ARL)' : 'Médico Pensionado (Solo Salud)';
                             badgeLbl.className = 'text-indigo-700 dark:text-indigo-300 font-extrabold';
-                            if (badgeRates) badgeRates.textContent = `IBC: ${ibcPct}% | Salud: ${saludPct}% | ARL: ${arlPct}% | Pensión: $0 (Exento)`;
+                            if (badgeRates) badgeRates.textContent = hasArl ? `IBC: ${ibcPct}% | Salud: ${saludPct}% | ARL: ${arlPct}% | Pensión: $0 (Exento)` : `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: $0 (Exento)`;
                         } else if (hasParafiscales) {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-teal-500 animate-pulse';
-                            badgeLbl.textContent = 'Parafiscales Activos para este Médico';
+                            badgeLbl.textContent = hasArl ? 'Parafiscales Activos (Salud, Pensión y ARL)' : 'Parafiscales Activos para este Médico';
                             badgeLbl.className = 'text-teal-700 dark:text-teal-300 font-extrabold';
-                            if (badgeRates) badgeRates.textContent = `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: ${pensionPct}% | ARL: ${arlPct}%`;
+                            if (badgeRates) badgeRates.textContent = hasArl ? `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: ${pensionPct}% | ARL: ${arlPct}%` : `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: ${pensionPct}%`;
+                        } else if (hasArl) {
+                            badgeDot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+                            badgeLbl.textContent = 'Aportes ARL Activos para este Médico';
+                            badgeLbl.className = 'text-amber-700 dark:text-amber-300 font-extrabold';
+                            if (badgeRates) badgeRates.textContent = `IBC: ${ibcPct}% | ARL: ${arlPct}%`;
                         } else {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-slate-400';
                             badgeLbl.textContent = 'Parafiscales Desactivados ($0)';
@@ -5707,18 +6562,17 @@ usort($listaMedicos, function($a, $b) {
 
             if (aplicaSeguridadSocial && totalFacturaBaseLiquidador > 0) {
                 ibcEstimado     = Math.round(totalFacturaBaseLiquidador * (ibcPct / 100));
-                saludEstimado   = Math.round(ibcEstimado * (saludPct / 100));
-                pensionEstimado = isPensionado ? 0 : Math.round(ibcEstimado * (pensionPct / 100));
-                arlEstimado     = Math.round(ibcEstimado * (arlPct / 100));
+                saludEstimado   = (hasParafiscales || isPensionado) ? Math.round(ibcEstimado * (saludPct / 100)) : 0;
+                pensionEstimado = (hasParafiscales && !isPensionado) ? Math.round(ibcEstimado * (pensionPct / 100)) : 0;
+                arlEstimado     = hasArl ? Math.round(ibcEstimado * (arlPct / 100)) : 0;
             }
 
             // Visibilidad de Deducciones según el perfil del Médico o si es Consolidado Global
-            const rowAfc         = document.getElementById('row_ded_afc');
-            const rowSolidaridad = document.getElementById('row_ded_solidaridad');
             const rowIbc         = document.getElementById('row_ded_ibc');
             const rowSalud       = document.getElementById('row_ded_salud');
             const rowArl         = document.getElementById('row_ded_arl');
             const rowPension     = document.getElementById('row_ded_pension');
+            const rowSolidaridad = document.getElementById('row_ded_solidaridad');
             const rowRetenciones = document.getElementById('row_ded_retenciones');
             const contRete383    = document.getElementById('container_ded_rete_383');
             const contRetencion  = document.getElementById('container_ded_retencion_pct');
@@ -5733,12 +6587,11 @@ usort($listaMedicos, function($a, $b) {
 
                 // Liquidación Global: Se ocultan parafiscales, aportes y rete 383
                 // Únicamente se muestra: PORCENTAJE DE RETENCIÓN, RETENCIÓN y TOTAL DEDUCCIONES
-                if (rowAfc)         rowAfc.classList.add('hidden');
-                if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
                 if (rowIbc)         rowIbc.classList.add('hidden');
                 if (rowSalud)       rowSalud.classList.add('hidden');
                 if (rowArl)         rowArl.classList.add('hidden');
                 if (rowPension)     rowPension.classList.add('hidden');
+                if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
 
                 if (rowRetenciones) {
                     rowRetenciones.classList.remove('hidden');
@@ -5748,7 +6601,10 @@ usort($listaMedicos, function($a, $b) {
                 if (contRetencion)  contRetencion.classList.remove('hidden');
 
                 document.getElementById('ded_afc').value = '0';
+                if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
                 document.getElementById('ded_solidaridad').value = '0';
+                const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+                if (dispSolidaridad) dispSolidaridad.textContent = '- $ 0';
                 document.getElementById('ded_ibc').value = '0';
                 document.getElementById('ded_salud').value = '0';
                 document.getElementById('ded_pension').value = '0';
@@ -5765,8 +6621,12 @@ usort($listaMedicos, function($a, $b) {
                 if (formBody) formBody.classList.add('hidden');
                 if (noDeducBox) noDeducBox.classList.remove('hidden');
 
+                if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
                 document.getElementById('ded_afc').value = '0';
+                if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
                 document.getElementById('ded_solidaridad').value = '0';
+                const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+                if (dispSolidaridad) dispSolidaridad.textContent = '- $ 0';
                 document.getElementById('ded_ibc').value = '0';
                 document.getElementById('ded_salud').value = '0';
                 document.getElementById('ded_pension').value = '0';
@@ -5783,22 +6643,33 @@ usort($listaMedicos, function($a, $b) {
                 if (formBody) formBody.classList.remove('hidden');
 
                 if (rowIbc)   rowIbc.classList.remove('hidden');
-                if (rowSalud) rowSalud.classList.remove('hidden');
-                if (rowArl)   rowArl.classList.remove('hidden');
+                if (hasParafiscales || isPensionado) {
+                    if (rowSalud) rowSalud.classList.remove('hidden');
+                } else {
+                    if (rowSalud) rowSalud.classList.add('hidden');
+                }
+                if (hasArl) {
+                    if (rowArl)   rowArl.classList.remove('hidden');
+                } else {
+                    if (rowArl)   rowArl.classList.add('hidden');
+                }
 
                 if (rowRetenciones) {
                     rowRetenciones.classList.add('border-t', 'border-slate-100', 'dark:border-slate-800', 'pt-2');
                 }
 
-                // AFC, Solidaridad y Pensión (Se ocultan para pensionados)
-                if (isPensionado) {
-                    if (rowAfc)         rowAfc.classList.add('hidden');
-                    if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
-                    if (rowPension)     rowPension.classList.add('hidden');
+                // Pensión (Se muestra solo si tiene parafiscales y no es pensionado)
+                if (hasParafiscales && !isPensionado) {
+                    if (rowPension) rowPension.classList.remove('hidden');
                 } else {
-                    if (rowAfc)         rowAfc.classList.remove('hidden');
+                    if (rowPension) rowPension.classList.add('hidden');
+                }
+
+                // Fondo de Solidaridad (Visible únicamente si el médico tiene Parafiscales activos)
+                if (hasParafiscales) {
                     if (rowSolidaridad) rowSolidaridad.classList.remove('hidden');
-                    if (rowPension)     rowPension.classList.remove('hidden');
+                } else {
+                    if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
                 }
 
                 // Retenciones: Se muestran según si tiene Retención Art 383 o Retención estándar, SIN importar si es pensionado
@@ -5817,7 +6688,10 @@ usort($listaMedicos, function($a, $b) {
                 }
 
                 document.getElementById('ded_afc').value = '0';
+                if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
                 document.getElementById('ded_solidaridad').value = '0';
+                const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+                if (dispSolidaridad) dispSolidaridad.textContent = '- $ 0';
                 document.getElementById('ded_ibc').value = ibcEstimado;
                 document.getElementById('ded_salud').value = saludEstimado;
                 document.getElementById('ded_pension').value = pensionEstimado;
@@ -5842,13 +6716,257 @@ usort($listaMedicos, function($a, $b) {
             }, 10);
         }
 
+        window.novedadesLiquidacionAplicadas = [];
+        window.catalogoNovedadesLiqCache = {};
+
+        async function alCambiarToggleNovedadesLiq(chk) {
+            const isChecked = chk.checked;
+            const entId = window.currentEntidadIdLiq || <?php echo json_encode($entidadActivaId ?: 'PROPIO'); ?>;
+            const medicoLabel = (document.getElementById('selectedMedicoLabel') ? document.getElementById('selectedMedicoLabel').textContent : '').trim() || '-- Todos los Médicos --';
+
+            if (isChecked) {
+                // Registrar log de auditoría
+                fetch(`gestion_medicos_procedimientos.php?action=registrar_log_toggle_novedades&referencia_id=PRE-LIQ&entidad_id=${encodeURIComponent(entId)}&medico=${encodeURIComponent(medicoLabel)}&activo=1`);
+                abrirModalNovedadesLiq();
+            } else {
+                if (window.novedadesLiquidacionAplicadas && window.novedadesLiquidacionAplicadas.length > 0) {
+                    const confirmDeselect = await SwalCustom.fire({
+                        title: '¿Remover novedades?',
+                        text: 'Al desmarcar esta opción se removerán todas las novedades que había aplicado a esta liquidación.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, remover novedades',
+                        cancelButtonText: 'Mantener novedades'
+                    });
+
+                    if (!confirmDeselect.isConfirmed) {
+                        chk.checked = true;
+                        return;
+                    }
+
+                    window.novedadesLiquidacionAplicadas = [];
+                    actualizarResumenBadgesNovedadesLiq();
+                    recalcularLiquidacion(true);
+                }
+
+                fetch(`gestion_medicos_procedimientos.php?action=registrar_log_toggle_novedades&referencia_id=PRE-LIQ&entidad_id=${encodeURIComponent(entId)}&medico=${encodeURIComponent(medicoLabel)}&activo=0`);
+            }
+        }
+
+        async function abrirModalNovedadesLiq() {
+            const entId = window.currentEntidadIdLiq || <?php echo json_encode($entidadActivaId ?: 'PROPIO'); ?>;
+            const entNombre = window.currentEntidadNombreLiq || <?php echo json_encode($entidadActivaNombre ?: 'HERNÁN OCAZIONEZ Y CÍA S.A.S.'); ?>;
+            const modal = document.getElementById('modalNovedadesLiq');
+            const subhead = document.getElementById('modalNovLiqSubhead');
+            const loading = document.getElementById('modalNovLiqLoading');
+            const empty = document.getElementById('modalNovLiqEmpty');
+            const cardsContainer = document.getElementById('modalNovLiqCards');
+
+            subhead.textContent = `Entidad: ${entNombre} (${entId})`;
+            modal.classList.remove('hidden');
+
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+            cardsContainer.classList.add('hidden');
+            cardsContainer.innerHTML = '';
+
+            try {
+                let novedades = window.catalogoNovedadesLiqCache[entId];
+                if (!novedades) {
+                    const res = await fetch(`gestion_medicos_procedimientos.php?action=obtener_novedades_entidad&entidad_id=${encodeURIComponent(entId)}`);
+                    const json = await res.json();
+                    if (json.success && Array.isArray(json.data)) {
+                        novedades = json.data;
+                        window.catalogoNovedadesLiqCache[entId] = novedades;
+                    } else {
+                        novedades = [];
+                    }
+                }
+
+                loading.classList.add('hidden');
+
+                if (novedades.length === 0) {
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                cardsContainer.classList.remove('hidden');
+
+                // Renderizar cards
+                novedades.forEach((nov, idx) => {
+                    const yaAplicada = (window.novedadesLiquidacionAplicadas || []).find(n => n.codigo === nov.codigo);
+                    const isChecked = !!yaAplicada;
+                    const valorActual = yaAplicada ? yaAplicada.valor : (parseFloat(nov.valor_predeterminado) || 0);
+                    const obsActual = yaAplicada ? (yaAplicada.observacion || '') : '';
+                    const esAdicion = (nov.tipo === 'ADICION');
+
+                    const card = document.createElement('div');
+                    card.className = `p-4 rounded-2xl border transition-all ${isChecked ? 'bg-amber-500/10 border-amber-500 dark:border-amber-400' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-amber-400'}`;
+                    card.setAttribute('data-nov-codigo', nov.codigo);
+
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" id="chkNovLiq_${idx}" ${isChecked ? 'checked' : ''} onchange="alCambiarCheckCardNovedadLiq(this)" class="nov-liq-card-check mt-1 w-4 h-4 text-amber-600 bg-white dark:bg-slate-800 border-amber-400 rounded focus:ring-amber-500 cursor-pointer" />
+                            <div class="flex-1 space-y-2">
+                                <div class="flex items-center justify-between flex-wrap gap-2">
+                                    <label for="chkNovLiq_${idx}" class="font-bold text-xs text-slate-800 dark:text-slate-100 cursor-pointer flex items-center gap-1.5">
+                                        <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black">${nov.codigo}</span>
+                                        <span>${htmlspecialchars(nov.nombre)}</span>
+                                    </label>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${esAdicion ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300 dark:border-rose-700'}">
+                                        ${esAdicion ? '+ ADICIÓN' : '- DEDUCCIÓN'}
+                                    </span>
+                                </div>
+                                ${nov.descripcion ? `<p class="text-[11px] text-slate-500 dark:text-slate-400">${htmlspecialchars(nov.descripcion)}</p>` : ''}
+                                
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                        <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Valor ($ COP)</label>
+                                        <input type="number" step="0.01" min="0" value="${valorActual}" placeholder="0" class="nov-liq-card-valor w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500" />
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Observación / Detalle</label>
+                                        <input type="text" value="${htmlspecialchars(obsActual)}" placeholder="Opcional..." class="nov-liq-card-obs w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    card._novData = nov;
+                    cardsContainer.appendChild(card);
+                });
+
+                actualizarConteoSeleccionadasNovedadesLiq();
+
+            } catch(e) {
+                loading.classList.add('hidden');
+                empty.classList.remove('hidden');
+                console.error("Error al cargar novedades de la entidad:", e);
+            }
+        }
+
+        function alCambiarCheckCardNovedadLiq(inputEl) {
+            const card = inputEl.closest('[data-nov-codigo]');
+            if (inputEl.checked) {
+                card.classList.add('bg-amber-500/10', 'border-amber-500', 'dark:border-amber-400');
+                card.classList.remove('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700/80');
+            } else {
+                card.classList.remove('bg-amber-500/10', 'border-amber-500', 'dark:border-amber-400');
+                card.classList.add('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700/80');
+            }
+            actualizarConteoSeleccionadasNovedadesLiq();
+        }
+
+        function actualizarConteoSeleccionadasNovedadesLiq() {
+            const count = document.querySelectorAll('#modalNovLiqCards .nov-liq-card-check:checked').length;
+            const el = document.getElementById('modalNovLiqSeleccionadasCount');
+            if (el) el.textContent = count;
+        }
+
+        function cerrarModalNovedadesLiq() {
+            document.getElementById('modalNovedadesLiq').classList.add('hidden');
+            if (!window.novedadesLiquidacionAplicadas || window.novedadesLiquidacionAplicadas.length === 0) {
+                const chk = document.getElementById('chkRegistraNovedadesLiq');
+                if (chk) chk.checked = false;
+            }
+        }
+
+        function aplicarNovedadesALiquidacion() {
+            const cardEls = document.querySelectorAll('#modalNovLiqCards [data-nov-codigo]');
+            const seleccionadas = [];
+
+            cardEls.forEach(card => {
+                const chk = card.querySelector('.nov-liq-card-check');
+                if (chk && chk.checked) {
+                    const nov = card._novData;
+                    const val = parseFloat(card.querySelector('.nov-liq-card-valor')?.value) || 0;
+                    const obs = (card.querySelector('.nov-liq-card-obs')?.value || '').trim();
+
+                    seleccionadas.push({
+                        id: nov.id,
+                        codigo: nov.codigo,
+                        nombre: nov.nombre,
+                        tipo: nov.tipo,
+                        valor: val,
+                        observacion: obs
+                    });
+                }
+            });
+
+            window.novedadesLiquidacionAplicadas = seleccionadas;
+            actualizarResumenBadgesNovedadesLiq();
+
+            const chkMain = document.getElementById('chkRegistraNovedadesLiq');
+            if (chkMain) chkMain.checked = (seleccionadas.length > 0);
+
+            cerrarModalNovedadesLiq();
+            recalcularLiquidacion(true);
+        }
+
+        function actualizarResumenBadgesNovedadesLiq() {
+            const container = document.getElementById('containerNovedadesLiqResumen');
+            const listaBadges = document.getElementById('listaNovedadesLiqBadges');
+            if (!container || !listaBadges) return;
+
+            const items = window.novedadesLiquidacionAplicadas || [];
+            if (items.length === 0) {
+                container.classList.add('hidden');
+                listaBadges.innerHTML = '';
+                return;
+            }
+
+            container.classList.remove('hidden');
+            let badgesHtml = '';
+            items.forEach(nov => {
+                const esAdicion = (nov.tipo === 'ADICION');
+                badgesHtml += `
+                    <div class="flex items-center justify-between text-xs py-1 px-2 rounded-lg ${esAdicion ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'}">
+                        <span class="truncate pr-1"><strong>${esAdicion ? '+ ' : '- '}${nov.codigo}</strong>: ${htmlspecialchars(nov.nombre)}</span>
+                        <strong class="font-mono shrink-0">$ ${(parseFloat(nov.valor) || 0).toLocaleString('es-CO')}</strong>
+                    </div>
+                `;
+            });
+            listaBadges.innerHTML = badgesHtml;
+        }
+
         function recalcularLiquidacion(autoCalcularSeguridadSocial = true) {
-            const totalFactura = totalFacturaBaseLiquidador;
+            // Novedades de la entidad aplicadas
+            let totalNovAdicion = 0;
+            let totalNovDeduccion = 0;
+            if (window.novedadesLiquidacionAplicadas && window.novedadesLiquidacionAplicadas.length > 0) {
+                window.novedadesLiquidacionAplicadas.forEach(n => {
+                    const v = parseFloat(n.valor) || 0;
+                    if (n.tipo === 'DEDUCCION') {
+                        totalNovDeduccion += v;
+                    } else {
+                        totalNovAdicion += v;
+                    }
+                });
+            }
+            const totalNovNeto = totalNovAdicion - totalNovDeduccion;
+
+            // Las novedades afectan directamente al TOTAL FACTURA (base bruta de facturación para deducciones)
+            const totalFactura = Math.max(0, totalFacturaBaseLiquidador + totalNovNeto);
+
+            const elTotalFactura = document.getElementById('liqTotalFacturaSum');
+            if (elTotalFactura) {
+                elTotalFactura.textContent = `$ ${totalFactura.toLocaleString('es-CO')}`;
+            }
+
+            const elNetoNov = document.getElementById('liqTotalNovedadesNetoDisplay');
+            if (elNetoNov) {
+                elNetoNov.textContent = (totalNovNeto >= 0 ? '+ ' : '- ') + '$ ' + Math.abs(totalNovNeto).toLocaleString('es-CO');
+                elNetoNov.className = (totalNovNeto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') + ' font-mono font-bold text-xs';
+            }
 
             if (window.isCurrentLiquidacionGlobal) {
                 // En liquidación global, solo aplica retención porcentual estándar
                 document.getElementById('ded_afc').value = '0';
+                if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
                 document.getElementById('ded_solidaridad').value = '0';
+                const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+                if (dispSolidaridad) dispSolidaridad.textContent = `- $ 0`;
                 document.getElementById('ded_ibc').value = 0;
                 document.getElementById('ded_salud').value = 0;
                 document.getElementById('ded_pension').value = 0;
@@ -5862,7 +6980,7 @@ usort($listaMedicos, function($a, $b) {
                 if (dispRetencion) dispRetencion.textContent = `- $ ${retencion.toLocaleString('es-CO')}`;
 
                 const totalDeducciones = retencion;
-                const totalPagar = totalFactura - totalDeducciones;
+                const totalPagar = Math.max(0, totalFactura - totalDeducciones);
 
                 document.getElementById('liqTotalDeduccionesDisplay').textContent = `- $ ${totalDeducciones.toLocaleString('es-CO')}`;
                 document.getElementById('liqTotalPagarDisplay').textContent = `$ ${totalPagar.toLocaleString('es-CO')}`;
@@ -5871,7 +6989,10 @@ usort($listaMedicos, function($a, $b) {
 
             if (!window.isCurrentLiquidacionGlobal && !window.currentMedicoHasAnyDeduction) {
                 document.getElementById('ded_afc').value = '0';
+                if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
                 document.getElementById('ded_solidaridad').value = '0';
+                const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+                if (dispSolidaridad) dispSolidaridad.textContent = `- $ 0`;
                 document.getElementById('ded_ibc').value = 0;
                 document.getElementById('ded_salud').value = 0;
                 document.getElementById('ded_pension').value = 0;
@@ -5881,7 +7002,8 @@ usort($listaMedicos, function($a, $b) {
                 const dispRetencion = document.getElementById('ded_retencion_display');
                 if (dispRetencion) dispRetencion.textContent = `- $ 0`;
                 document.getElementById('liqTotalDeduccionesDisplay').textContent = `- $ 0`;
-                document.getElementById('liqTotalPagarDisplay').textContent = `$ ${totalFactura.toLocaleString('es-CO')}`;
+                const totalPagar = totalFactura;
+                document.getElementById('liqTotalPagarDisplay').textContent = `$ ${totalPagar.toLocaleString('es-CO')}`;
                 return;
             }
 
@@ -5891,10 +7013,9 @@ usort($listaMedicos, function($a, $b) {
             const arlPct     = (window.parafiscalesConfig && window.parafiscalesConfig.ARL !== undefined) ? Number(window.parafiscalesConfig.ARL) : 2.436;
 
             const afc         = parseMontoInput(document.getElementById('ded_afc').value);
-            const solidaridad = parseMontoInput(document.getElementById('ded_solidaridad').value);
 
             let ibc = parseFloat(document.getElementById('ded_ibc').value) || 0;
-            const aplicaSeguridadSocial = (window.currentMedicoHasParafiscales || window.currentMedicoIsPensionado);
+            const aplicaSeguridadSocial = (window.currentMedicoHasParafiscales || window.currentMedicoIsPensionado || window.currentMedicoHasArl);
             
             if (autoCalcularSeguridadSocial && totalFactura > 0) {
                 if (aplicaSeguridadSocial) {
@@ -5907,15 +7028,25 @@ usort($listaMedicos, function($a, $b) {
             const dispIbc = document.getElementById('ded_ibc_display');
             if (dispIbc) dispIbc.textContent = `$ ${ibc.toLocaleString('es-CO')}`;
 
+            // Fondo de Solidaridad: Solo aplica si el médico tiene Parafiscales activos y se calcula sobre el IBC
+            const solidaridadPct = (window.currentMedicoHasParafiscales && document.getElementById('ded_solidaridad_pct')) ? (parseFloat(document.getElementById('ded_solidaridad_pct').value) || 0) : 0;
+            let solidaridad = 0;
+            if (window.currentMedicoHasParafiscales && solidaridadPct > 0 && ibc > 0) {
+                solidaridad = Math.round(ibc * (solidaridadPct / 100));
+            }
+            document.getElementById('ded_solidaridad').value = solidaridad;
+            const dispSolidaridad = document.getElementById('ded_solidaridad_display');
+            if (dispSolidaridad) dispSolidaridad.textContent = `- $ ${solidaridad.toLocaleString('es-CO')}`;
+
             let salud   = parseFloat(document.getElementById('ded_salud').value) || 0;
             let pension = parseFloat(document.getElementById('ded_pension').value) || 0;
             let arl     = parseFloat(document.getElementById('ded_arl').value) || 0;
 
             if (autoCalcularSeguridadSocial) {
                 if (aplicaSeguridadSocial && ibc > 0) {
-                    salud   = Math.round(ibc * (saludPct / 100));
-                    pension = window.currentMedicoIsPensionado ? 0 : Math.round(ibc * (pensionPct / 100));
-                    arl     = Math.round(ibc * (arlPct / 100));
+                    salud   = (window.currentMedicoHasParafiscales || window.currentMedicoIsPensionado) ? Math.round(ibc * (saludPct / 100)) : 0;
+                    pension = (window.currentMedicoHasParafiscales && !window.currentMedicoIsPensionado) ? Math.round(ibc * (pensionPct / 100)) : 0;
+                    arl     = window.currentMedicoHasArl ? Math.round(ibc * (arlPct / 100)) : 0;
                 } else {
                     salud   = 0;
                     pension = 0;
@@ -5934,6 +7065,22 @@ usort($listaMedicos, function($a, $b) {
 
             const dispArl = document.getElementById('ded_arl_display');
             if (dispArl) dispArl.textContent = `- $ ${arl.toLocaleString('es-CO')}`;
+
+            // Actualizar etiqueta de tasas si aplica seguridad social
+            const badgeRates = document.getElementById('liqParafiscalesRatesText');
+            if (badgeRates && aplicaSeguridadSocial) {
+                let ratesText = `IBC: ${ibcPct}% | Salud: ${saludPct}%`;
+                if (!window.currentMedicoIsPensionado) {
+                    ratesText += ` | Pensión: ${pensionPct}%`;
+                }
+                if (solidaridadPct > 0 && window.currentMedicoHasParafiscales) {
+                    ratesText += ` | F. Sol.: ${solidaridadPct}%`;
+                }
+                if (window.currentMedicoHasArl) {
+                    ratesText += ` | ARL: ${arlPct}%`;
+                }
+                badgeRates.textContent = ratesText;
+            }
 
             let rete383   = 0;
             let retencion = 0;
@@ -5956,7 +7103,7 @@ usort($listaMedicos, function($a, $b) {
             }
 
             const totalDeducciones = afc + solidaridad + salud + pension + arl + rete383 + retencion;
-            const totalPagar = totalFactura - totalDeducciones;
+            const totalPagar = Math.max(0, totalFactura - totalDeducciones);
 
             document.getElementById('liqTotalDeduccionesDisplay').textContent = `- $ ${totalDeducciones.toLocaleString('es-CO')}`;
             document.getElementById('liqTotalPagarDisplay').textContent = `$ ${totalPagar.toLocaleString('es-CO')}`;
@@ -5988,7 +7135,8 @@ usort($listaMedicos, function($a, $b) {
             const medicoCedula = medicoVal || 'GLOBAL';
 
             const afc          = parseMontoInput(document.getElementById('ded_afc').value);
-            const solidaridad  = parseMontoInput(document.getElementById('ded_solidaridad').value);
+            const solidaridadPct = (window.currentMedicoHasParafiscales && document.getElementById('ded_solidaridad_pct')) ? (parseFloat(document.getElementById('ded_solidaridad_pct').value) || 0) : 0;
+            const solidaridad    = parseMontoInput(document.getElementById('ded_solidaridad').value);
             const ibc          = parseMontoInput(document.getElementById('ded_ibc').value);
             const salud        = parseMontoInput(document.getElementById('ded_salud').value);
             const pension      = parseMontoInput(document.getElementById('ded_pension').value);
@@ -5998,9 +7146,22 @@ usort($listaMedicos, function($a, $b) {
             const retencionPct = parseFloat(document.getElementById('ded_retencion_pct').value) || 0;
             const retencion    = parseMontoInput(document.getElementById('ded_retencion').value);
 
-            const totalFactura     = totalFacturaBaseLiquidador;
+            let totalNovAdicion = 0;
+            let totalNovDeduccion = 0;
+            if (window.novedadesLiquidacionAplicadas && window.novedadesLiquidacionAplicadas.length > 0) {
+                window.novedadesLiquidacionAplicadas.forEach(n => {
+                    const v = parseFloat(n.valor) || 0;
+                    if (n.tipo === 'DEDUCCION') {
+                        totalNovDeduccion += v;
+                    } else {
+                        totalNovAdicion += v;
+                    }
+                });
+            }
+            const totalNovNeto = totalNovAdicion - totalNovDeduccion;
+            const totalFactura = Math.max(0, totalFacturaBaseLiquidador + totalNovNeto);
             const totalDeducciones = afc + solidaridad + salud + pension + arl + rete383 + retencion;
-            const totalAPagar      = totalFactura - totalDeducciones;
+            const totalAPagar  = Math.max(0, totalFactura - totalDeducciones);
 
             const countExcluidos = excludedRecordsMap.size;
             let msgExclusionesHtml = '';
@@ -6039,6 +7200,17 @@ usort($listaMedicos, function($a, $b) {
                             <span class="text-slate-400 font-medium">Total Factura:</span>
                             <span class="font-mono font-bold text-white">$ ${totalFactura.toLocaleString('es-CO')}</span>
                         </div>
+                        ${(window.novedadesLiquidacionAplicadas && window.novedadesLiquidacionAplicadas.length > 0) ? `
+                        <div class="flex justify-between items-center text-xs text-amber-400">
+                            <span class="font-medium">Novedades Entidad (${window.novedadesLiquidacionAplicadas.length}):</span>
+                            <span class="font-mono font-bold">${totalNovNeto >= 0 ? '+ ' : '- '}$ ${Math.abs(totalNovNeto).toLocaleString('es-CO')} (Incluidas en Factura)</span>
+                        </div>` : ''}
+                        ${solidaridad > 0 ? `
+                        <div class="flex justify-between items-center text-xs text-rose-400">
+                            <span class="font-medium">Fondo Solidaridad (${solidaridadPct}%):</span>
+                            <span class="font-mono font-bold">- $ ${solidaridad.toLocaleString('es-CO')}</span>
+                        </div>
+                        ` : ''}
                         <div class="flex justify-between items-center text-xs text-rose-400">
                             <span class="font-medium">Total Deducciones:</span>
                             <span class="font-mono font-bold">- $ ${totalDeducciones.toLocaleString('es-CO')}</span>
@@ -6105,6 +7277,9 @@ usort($listaMedicos, function($a, $b) {
                     entidad: sDataServ ? (sDataServ.entidad || '') : (item.entidad || ''),
                     cups: item.cups || '',
                     examen: item.nombre_examen || item.cups || 'EXAMEN MÉDICO',
+                    servicio: item.servicio || (item.concepto === 'ECOG' ? 'ECOGRAFIA' : (item.concepto === 'DOPP' ? 'DOPPLER' : (item.concepto === 'TOHO' ? 'TOMOGRAFIA' : (item.concepto === 'MAMO' ? 'MAMOGRAFIA' : (item.concepto === 'BIOP' ? 'BIOPSIAS' : (item.concepto === 'RXES' ? 'RX ESPECIALES' : (item.concepto === 'RXSI' ? 'RX SIMPLE' : (item.es_bloqueo_ho ? 'BLOQUEOS' : '')))))))),
+                    concepto: item.concepto || (item.es_bloqueo_ho ? 'BLOQ' : ''),
+                    cuenta_contable: item.cuenta_contable || '',
                     cantidad: cantVal,
                     valor_examen: parseFloat(item.valor_servinte || (sDataServ ? sDataServ.total : 0) || 0),
                     valor_a_pagar: valPagar,
@@ -6128,36 +7303,37 @@ usort($listaMedicos, function($a, $b) {
             });
 
             const cantBonisGuardado = Math.floor(totalTomosContrastadasGuardado / 50);
-            const valorBonisGuardado = cantBonisGuardado * 150000;
-            const sedesResumenKeys = Object.keys(sedesResumen);
-
-            if (cantBonisGuardado > 0 && sedesResumenKeys.length > 0) {
-                let sedeMayorTomo = sedesResumenKeys[0];
-                let maxTomo = -1;
-                sedesResumenKeys.forEach(sKey => {
-                    const countS = sedesTomoCountGuardado[sKey] || 0;
-                    if (countS > maxTomo) {
-                        maxTomo = countS;
-                        sedeMayorTomo = sKey;
+            if (cantBonisGuardado > 0) {
+                let sedeMayoritaria = 'SEDE SIN ESPECIFICAR';
+                let maxCant = -1;
+                Object.keys(sedesTomoCountGuardado).forEach(s => {
+                    if (sedesTomoCountGuardado[s] > maxCant) {
+                        maxCant = sedesTomoCountGuardado[s];
+                        sedeMayoritaria = s;
                     }
                 });
 
-                sedesResumen[sedeMayorTomo].total += valorBonisGuardado;
-                sedesResumen[sedeMayorTomo].examenes.push({
-                    origen: 'SISTEMA',
-                    id_ref: 'BONI_TOHO',
-                    fuente: 'LIHO',
-                    ingreso: 'BONIFICACION',
-                    tipo_paciente: 'Incentivo',
-                    fecha: (new Date()).toISOString().substring(0, 10),
-                    sede: sedeMayorTomo,
+                if (!sedesResumen[sedeMayoritaria]) {
+                    sedesResumen[sedeMayoritaria] = { total: 0, examenes: [] };
+                }
+
+                const valorBonisGuardado = cantBonisGuardado * 150000;
+                sedesResumen[sedeMayoritaria].total += valorBonisGuardado;
+                sedesResumen[sedeMayoritaria].examenes.push({
+                    origen: 'BONIFICACION',
+                    id_ref: 'BONI_TOMOS',
+                    fuente: 'REGLA_LIHO',
+                    ingreso: 'N/A',
+                    tipo_paciente: 'Institucional',
+                    fecha: fHasta || fDesde || '',
+                    sede: sedeMayoritaria,
                     medico_nombre: medicoNombre,
                     medico_cedula: medicoCedula,
-                    paciente: 'INCENTIVO POR PRODUCTIVIDAD',
+                    paciente: 'BONIFICACIÓN CUMPLIMIENTO TOMOGRAFÍAS',
                     documento: 'N/A',
-                    entidad: 'LIHO IPS',
-                    cups: 'BONI_TOHO',
-                    examen: `BONIFICACIÓN TOMOGRAFÍAS (${totalTomosContrastadasGuardado} TOMOGRAFÍAS / ${cantBonisGuardado}x$150.000 COP)`,
+                    entidad: 'HERNÁN OCAZIONEZ Y CÍA S.A.S.',
+                    cups: 'BONI50',
+                    examen: `BONIFICACIÓN TOMOGRAFÍAS CONTRASTADAS (${totalTomosContrastadasGuardado} CONTRASTADAS / ${cantBonisGuardado}x$150.000 COP)`,
                     cantidad: cantBonisGuardado,
                     valor_examen: 0,
                     valor_a_pagar: valorBonisGuardado,
@@ -6207,6 +7383,7 @@ usort($listaMedicos, function($a, $b) {
                 entidad_nombre: typeof entActivaNombre !== 'undefined' ? entActivaNombre : 'HERNÁN OCAZIONEZ Y CÍA S.A.S.',
                 total_factura: totalFactura,
                 ded_afc: afc,
+                ded_solidaridad_pct: solidaridadPct,
                 ded_solidaridad: solidaridad,
                 ded_ibc: ibc,
                 ded_salud: salud,
@@ -6218,6 +7395,10 @@ usort($listaMedicos, function($a, $b) {
                 ded_retencion: retencion,
                 total_deducciones: totalDeducciones,
                 total_a_pagar: totalAPagar,
+                novedades_json: (window.novedadesLiquidacionAplicadas && window.novedadesLiquidacionAplicadas.length > 0) ? window.novedadesLiquidacionAplicadas : null,
+                total_novedades_adicion: totalNovAdicion,
+                total_novedades_deduccion: totalNovDeduccion,
+                total_novedades_neto: totalNovNeto,
                 detalles_json: JSON.stringify(sedesResumen),
                 exclusiones_json: JSON.stringify(exclusionesArr)
             };
@@ -6231,6 +7412,8 @@ usort($listaMedicos, function($a, $b) {
                 const res = await resp.json();
 
                 if (res.success) {
+                    window.novedadesLiquidacionAplicadas = [];
+                    cerrarModalLiquidacion();
                     SwalCustom.fire({
                         icon: 'success',
                         title: 'Liquidación Generada Exitosamente',
@@ -6242,8 +7425,10 @@ usort($listaMedicos, function($a, $b) {
                             </div>
                         `,
                         confirmButtonText: '<i class="fa-solid fa-check mr-1.5"></i> Entendido'
+                    }).then(() => {
+                        limpiarFiltros();
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
                     });
-                    cerrarModalLiquidacion();
                 } else {
                     SwalCustom.fire({
                         icon: 'error',
@@ -6357,27 +7542,27 @@ usort($listaMedicos, function($a, $b) {
                 const esCruzado = (ex.cruce === 'CRUZADO');
                 const badgeCruce = esCruzado 
                     ? `<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 inline-flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> Cruzado OK</span>`
-                    : `<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-950 text-rose-300 border border-rose-800 inline-flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> No Cruzado (Solo Proteo)</span>`;
+                    : `<span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800 inline-flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> No Cruzado (Solo Proteo)</span>`;
 
                 rowsHtml += `
-                    <tr class="border-b border-slate-800 hover:bg-slate-800/50 transition-colors text-left text-xs">
+                    <tr class="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left text-xs">
                         <td class="py-2.5 px-3">
-                            <div class="font-bold text-slate-100">${htmlspecialchars(ex.paciente || 'PACIENTE')}</div>
-                            <div class="text-[10px] font-mono text-slate-400">ID/CC: ${htmlspecialchars(ex.documento || 'N/A')}</div>
+                            <div class="font-bold text-slate-900 dark:text-slate-100">${htmlspecialchars(ex.paciente || 'PACIENTE')}</div>
+                            <div class="text-[10px] font-mono text-slate-500 dark:text-slate-400">ID/CC: ${htmlspecialchars(ex.documento || 'N/A')}</div>
                         </td>
                         <td class="py-2.5 px-3">
-                            <div class="font-semibold text-slate-200 flex items-center gap-1.5 flex-wrap">
+                            <div class="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
                                 <span>${htmlspecialchars(ex.nombre_examen || ex.cups || 'EXAMEN')}</span>
                                 ${(esTextoComparativo(ex.nombre_examen || ex.cups || '') || esTextoComparativo(ex.detail || '')) ? `
-                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-indigo-900/90 text-indigo-200 border border-indigo-700 shadow-xs">
+                                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-indigo-100 text-indigo-800 dark:bg-indigo-900/90 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 shadow-xs">
                                         <i class="fa-solid fa-code-compare text-[8px]"></i> COMPARATIVO
                                     </span>
                                 ` : ''}
                             </div>
-                            ${ex.cups ? `<div class="text-[10px] text-teal-400 font-mono">CUPS: ${htmlspecialchars(ex.cups)}</div>` : ''}
+                            ${ex.cups ? `<div class="text-[10px] text-teal-600 dark:text-teal-400 font-mono">CUPS: ${htmlspecialchars(ex.cups)}</div>` : ''}
                         </td>
-                        <td class="py-2.5 px-3 font-mono text-[11px] text-slate-300">${htmlspecialchars(ex.ingreso || ex.fuente_id || 'N/A')}</td>
-                        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">$ ${valPagar.toLocaleString('es-CO')}</td>
+                        <td class="py-2.5 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">${htmlspecialchars(ex.ingreso || ex.fuente_id || 'N/A')}</td>
+                        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">$ ${valPagar.toLocaleString('es-CO')}</td>
                         <td class="py-2.5 px-3 text-center">${badgeCruce}</td>
                     </tr>
                 `;
@@ -6390,13 +7575,13 @@ usort($listaMedicos, function($a, $b) {
                 width: '800px',
                 html: `
                     <div class="space-y-3 text-left my-2">
-                        <div class="flex justify-between items-center p-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-xs">
-                            <span class="text-slate-300 font-medium">Total Exámenes Sede: <strong class="text-white font-mono text-sm">${totalRegistrosSede.toLocaleString('es-CO')}</strong></span>
-                            <span class="text-slate-300 font-medium">Total Facturado: <strong class="text-tertiary font-mono text-sm">$ ${totalVal.toLocaleString('es-CO')}</strong></span>
+                        <div class="flex justify-between items-center p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-xs">
+                            <span class="text-slate-700 dark:text-slate-300 font-medium">Total Exámenes Sede: <strong class="text-slate-900 dark:text-white font-mono text-sm">${totalRegistrosSede.toLocaleString('es-CO')}</strong></span>
+                            <span class="text-slate-700 dark:text-slate-300 font-medium">Total Facturado: <strong class="text-teal-600 dark:text-tertiary font-mono text-sm">$ ${totalVal.toLocaleString('es-CO')}</strong></span>
                         </div>
-                        <div class="max-h-[350px] overflow-y-auto rounded-xl border border-slate-800 bg-slate-950">
+                        <div class="max-h-[350px] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
                             <table class="w-full text-left border-collapse">
-                                <thead class="sticky top-0 bg-slate-900 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                <thead class="sticky top-0 bg-slate-100 dark:bg-slate-900 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                                     <tr>
                                         <th class="py-2 px-3">Paciente / Cédula</th>
                                         <th class="py-2 px-3">Examen / CUPS</th>

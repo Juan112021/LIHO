@@ -190,6 +190,8 @@ $nombresMeses = array(
 $mesActualKey = date('Y-m');
 $primerDiaMesActual = date('Y-m-01');
 $ultimoDiaMesActual = date('Y-m-t');
+$nombreMesActual = $nombresMeses[intval(date('n'))] . ' ' . date('Y');
+$anioActual = date('Y');
 
 $opcionesMeses = array();
 for ($i = 0; $i < 18; $i++) {
@@ -480,7 +482,7 @@ for ($i = 0; $i < 18; $i++) {
                     <!-- Botón Desplegable Popover -->
                     <button type="button" id="btnPeriodoActivo" onclick="toggleModalSelectorMeses(event)" class="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-white font-black font-outfit text-xs sm:text-sm flex items-center gap-2 shadow-xs hover:border-tertiary border border-transparent transition-all cursor-pointer">
                         <span class="material-symbols-outlined text-base text-tertiary">calendar_month</span>
-                        <span id="labelPeriodoActivo">Agosto 2026</span>
+                        <span id="labelPeriodoActivo"><?php echo htmlspecialchars($nombreMesActual); ?></span>
                         <span id="badgeMesActualTag" class="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">Mes Actual</span>
                         <i class="fa-solid fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
                     </button>
@@ -495,7 +497,7 @@ for ($i = 0; $i < 18; $i++) {
                             <span class="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider font-outfit">Seleccionar Período</span>
                             <div class="flex items-center gap-1.5">
                                 <button type="button" onclick="cambiarAnioSelector(-1)" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer"><i class="fa-solid fa-chevron-left text-xs"></i></button>
-                                <span id="labelAnioSelector" class="font-bold text-xs text-tertiary font-mono">2026</span>
+                                <span id="labelAnioSelector" class="font-bold text-xs text-tertiary font-mono"><?php echo htmlspecialchars($anioActual); ?></span>
                                 <button type="button" onclick="cambiarAnioSelector(1)" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer"><i class="fa-solid fa-chevron-right text-xs"></i></button>
                             </div>
                         </div>
@@ -735,7 +737,7 @@ for ($i = 0; $i < 18; $i++) {
             selectorYear: anioActualReal
         };
 
-        document.addEventListener('DOMContentLoaded', () => {
+        function inicializarModuloAprobacion() {
             inicializarPeriodo();
             cargarLiquidaciones();
 
@@ -749,7 +751,13 @@ for ($i = 0; $i < 18; $i++) {
                     }
                 }
             });
-        });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', inicializarModuloAprobacion);
+        } else {
+            inicializarModuloAprobacion();
+        }
 
         function inicializarPeriodo() {
             setPeriodoMes(anioActualReal, mesActualReal, false);
@@ -1292,6 +1300,25 @@ for ($i = 0; $i < 18; $i++) {
                 rows.push([`RETENCIÓN (${item.ded_retencion_pct || 0}%):`, item.ded_retencion || 0]);
             }
             rows.push(['TOTAL DEDUCCIONES:', item.total_deducciones || 0]);
+
+            // Novedades aplicadas
+            let novList = [];
+            try {
+                if (item.novedades_json) {
+                    novList = typeof item.novedades_json === 'string' ? JSON.parse(item.novedades_json) : (item.novedades_json || []);
+                }
+            } catch(e) {}
+            if (novList && novList.length > 0) {
+                rows.push([]);
+                rows.push(['--- NOVEDADES APLICADAS ---']);
+                rows.push(['CÓDIGO / CONCEPTO', 'TIPO', 'OBSERVACIÓN', 'VALOR']);
+                novList.forEach(n => {
+                    const esAd = (n.tipo === 'ADICION' || n.tipo === 'ADICIÓN');
+                    rows.push([n.nombre || n.codigo || 'NOVEDAD', esAd ? 'ADICIÓN (+)' : 'DEDUCCIÓN (-)', n.observacion || '', (esAd ? '+' : '-') + (n.valor || 0)]);
+                });
+                rows.push(['TOTAL NOVEDADES NETO:', item.total_novedades_neto || 0]);
+            }
+
             rows.push(['TOTAL A PAGAR:', item.total_a_pagar || 0]);
 
             let csvContent = '\uFEFF';
@@ -1661,6 +1688,59 @@ for ($i = 0; $i < 18; $i++) {
                 const dedRetencion   = parseFloat(item.ded_retencion || 0);
                 const totalDeducciones = parseFloat(item.total_deducciones || 0);
                 const totalAPagar    = parseFloat(item.total_a_pagar || 0);
+
+                // Novedades aplicadas a la liquidación
+                let novedadesLista = [];
+                try {
+                    if (item.novedades_json) {
+                        novedadesLista = typeof item.novedades_json === 'string' ? JSON.parse(item.novedades_json) : (item.novedades_json || []);
+                    }
+                } catch(e) {
+                    novedadesLista = [];
+                }
+                const totalNovAdicion = parseFloat(item.total_novedades_adicion || 0);
+                const totalNovDeduccion = parseFloat(item.total_novedades_deduccion || 0);
+                const totalNovNeto = parseFloat(item.total_novedades_neto || (totalNovAdicion - totalNovDeduccion));
+
+                let novedadesCardHtml = '';
+                if (novedadesLista && novedadesLista.length > 0) {
+                    let novRows = '';
+                    novedadesLista.forEach(nov => {
+                        const esAdic = (nov.tipo === 'ADICION' || nov.tipo === 'ADICIÓN');
+                        const valNum = parseFloat(nov.valor || 0);
+                        novRows += `
+                            <div class="flex items-start justify-between gap-2 text-xs py-1.5 border-b border-indigo-100/60 dark:border-indigo-900/40 last:border-0">
+                                <div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${esAdic ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'}">${esAdic ? '+ ADICIÓN' : '- DEDUCCIÓN'}</span>
+                                        <span class="font-bold text-slate-800 dark:text-slate-200 text-[11px]">${htmlspecialchars(nov.nombre || nov.codigo || 'Novedad')}</span>
+                                    </div>
+                                    ${nov.observacion ? `<p class="text-[10px] text-slate-500 italic mt-0.5">${htmlspecialchars(nov.observacion)}</p>` : ''}
+                                </div>
+                                <span class="font-mono font-bold text-xs shrink-0 ${esAdic ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
+                                    ${esAdic ? '+' : '-'}$ ${valNum.toLocaleString('es-CO')}
+                                </span>
+                            </div>
+                        `;
+                    });
+
+                    novedadesCardHtml = `
+                        <!-- Novedades de la Entidad -->
+                        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-900/60 shadow-sm overflow-hidden border-l-4 border-l-indigo-500 flex flex-col avoid-page-break">
+                            <div class="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 py-2.5 px-4 font-bold text-xs tracking-widest text-center uppercase border-b border-indigo-200 dark:border-indigo-900/40 flex items-center justify-center gap-1.5 shrink-0">
+                                <i class="fa-solid fa-tags text-sm"></i>
+                                NOVEDADES APLICADAS (${novedadesLista.length})
+                            </div>
+                            <div class="p-4 space-y-2">
+                                ${novRows}
+                                <div class="pt-2 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center text-xs font-bold ${totalNovNeto >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-rose-600 dark:text-rose-400'}">
+                                    <span class="uppercase tracking-wider">IMPACTO NETO NOVEDADES</span>
+                                    <span class="font-mono text-sm font-black">${totalNovNeto >= 0 ? '+' : ''}$ ${totalNovNeto.toLocaleString('es-CO')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
 
                 let statusBadgeText = '';
                 if (dedPension === 0 && (dedSalud > 0 || dedArl > 0)) {
@@ -2314,6 +2394,8 @@ for ($i = 0; $i < 18; $i++) {
                                 </div>
                             </div>
 
+                            ${novedadesCardHtml}
+
                             <!-- Tarjeta de Total a Pagar Grande -->
                             <div class="bg-emerald-50 dark:bg-slate-900 border-2 border-emerald-500 dark:border-emerald-600/80 p-5 rounded-2xl shadow-sm text-center flex flex-col justify-center items-center avoid-page-break">
                                 <span class="text-xs font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-400">TOTAL A PAGAR ===>>></span>
@@ -2900,64 +2982,6 @@ for ($i = 0; $i < 18; $i++) {
             const link = document.createElement("a");
             link.setAttribute("href", url);
             link.setAttribute("download", `Informe_Sede_${sedeKey}_Liq_${liqId}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function exportarLiquidacionCompletaExcel() {
-            if (!window.currentLiquidationData) {
-                SwalCustom.fire({ icon: 'warning', title: 'Sin Datos', text: 'No hay liquidación seleccionada para exportar.' });
-                return;
-            }
-
-            const item = window.currentLiquidationData;
-            let csvContent = "\uFEFF";
-            csvContent += `LIQUIDACIÓN DE TURNOS Y HONORARIOS MÉDICOS - IPS HERNÁN OCAZIONEZ\n`;
-            csvContent += `Liquidación N°;#${item.id}\n`;
-            csvContent += `Estado;${item.estado}\n`;
-            csvContent += `Médico / Profesional;${item.medico_nombre}\n`;
-            csvContent += `Cédula / Documento;${item.medico_cedula}\n`;
-            csvContent += `Periodo;${item.periodo_desde} AL ${item.periodo_hasta}\n`;
-            csvContent += `Registrado por;${item.usuario_creador_nombre || 'Sistema'} (${item.fecha_creacion})\n`;
-            if (item.usuario_aprobador_nombre) {
-                csvContent += `Aprobado / Cancelado por;${item.usuario_aprobador_nombre} (${item.fecha_aprobacion})\n`;
-            }
-            if (item.hash_integridad) {
-                csvContent += `Huella SHA-256;${item.hash_integridad}\n`;
-            }
-            csvContent += `\n`;
-
-            csvContent += "RESUMEN FINANCIERO\n";
-            csvContent += `Total Factura;$ ${parseFloat(item.total_factura || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción AFC;$ ${parseFloat(item.ded_afc || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción Fondo Solidaridad;$ ${parseFloat(item.ded_solidaridad || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción IBC Aportes;$ ${parseFloat(item.ded_ibc || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción Salud (12.5%);$ ${parseFloat(item.ded_salud || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción ARL (2.436%);$ ${parseFloat(item.ded_arl || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Deducción Rete383;$ ${parseFloat(item.ded_rete_383 || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `Otras Retenciones;$ ${parseFloat(item.ded_retencion || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `TOTAL DEDUCCIONES;$ ${parseFloat(item.total_deducciones || 0).toLocaleString('es-CO')}\n`;
-            csvContent += `TOTAL A PAGAR;$ ${parseFloat(item.total_a_pagar || 0).toLocaleString('es-CO')}\n\n`;
-
-            csvContent += "DESGLOSE DE TOTALES POR SEDE\n";
-            csvContent += "SEDE;MONTO TOTAL FACTURADO\n";
-
-            try {
-                const sedesObj = typeof item.detalles_json === 'string' ? JSON.parse(item.detalles_json) : item.detalles_json;
-                if (sedesObj) {
-                    for (const [sede, val] of Object.entries(sedesObj)) {
-                        let totalVal = typeof val === 'number' || typeof val === 'string' ? parseFloat(val) : parseFloat(val.total || 0);
-                        csvContent += `"${sede.replace(/"/g, '""')}";${totalVal}\n`;
-                    }
-                }
-            } catch (e) {}
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `Liquidacion_N_${item.id}_${(item.medico_nombre || 'MEDICO').replace(/\s+/g, '_')}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);

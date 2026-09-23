@@ -199,12 +199,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
                     $cant = intval($cVal['cantidad'] ?? ($cVal['cant'] ?? 0));
                     $val = floatval($cVal['total'] ?? ($cVal['valor'] ?? 0));
 
-                    // Unir los no cruzados al concepto principal RXSI
-                    if ($cKey === 'RXSI' && $noCruzCant > 0) {
-                        $cant += $noCruzCant;
-                        $val += $noCruzVal;
-                        $noCruzCant = 0;
-                    }
+
 
                     $totalExamenesCant += $cant;
                     $totalExamenesVal += $val;
@@ -234,7 +229,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
             $pdf->SetFont('Arial', 'B', 7.5);
             $pdf->Cell(65, 5, utf8_decode(strtoupper($sedeNombre)), 1, 0, 'L', true);
             $pdf->SetFont('Arial', '', 7.5);
-            $pdf->Cell(45, 5, utf8_decode('RXSI'), 1, 0, 'L', true);
+            $pdf->Cell(45, 5, utf8_decode('ESTUDIOS REALIZADOS'), 1, 0, 'L', true);
             $pdf->Cell(25, 5, number_format($totalSedeCant, 0, ',', '.'), 1, 0, 'C', true);
             $pdf->SetFont('Courier', 'B', 8);
             $pdf->Cell(55, 5, '$ ' . number_format($totalSedeVal, 2, ',', '.'), 1, 1, 'R', true);
@@ -326,6 +321,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     $pdf->Cell(50, 4.5, utf8_decode('SEDE'), 1, 0, 'L', true);
     $pdf->Cell(40, 4.5, utf8_decode('VALOR TOTAL'), 1, 1, 'R', true);
 
+    $totNovNeto = floatval($liq['total_novedades_neto'] ?? 0);
     foreach ($sedesObj as $sedeNombre => $sData) {
         $valSede = floatval($sData['total'] ?? 0);
         $pdf->SetFont('Arial', '', 7.5);
@@ -333,6 +329,15 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
         $pdf->Cell(50, 4.5, utf8_decode(strtoupper($sedeNombre)), 1, 0, 'L');
         $pdf->SetFont('Courier', 'B', 7.5);
         $pdf->Cell(40, 4.5, '$ ' . number_format($valSede, 2, ',', '.'), 1, 1, 'R');
+    }
+
+    if ($totNovNeto != 0) {
+        $pdf->SetFont('Arial', 'B', 7.5);
+        $pdf->SetFillColor(238, 242, 255);
+        $pdf->SetTextColor(67, 56, 202);
+        $pdf->Cell(50, 4.5, utf8_decode('NOVEDADES ENTIDAD:'), 1, 0, 'L', true);
+        $pdf->SetFont('Courier', 'B', 7.5);
+        $pdf->Cell(40, 4.5, ($totNovNeto >= 0 ? '+ ' : '- ') . '$ ' . number_format(abs($totNovNeto), 2, ',', '.'), 1, 1, 'R', true);
     }
 
     $pdf->SetFont('Arial', 'B', 8);
@@ -397,8 +402,10 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     }
 
     $solidaridad = floatval($liq['ded_solidaridad'] ?? 0);
+    $solPct = floatval($liq['ded_solidaridad_pct'] ?? 0);
     if ($solidaridad > 0) {
-        $deducciones['MENOS FONDO SOLIDARIDAD'] = -$solidaridad;
+        $lblSol = ($solPct > 0) ? "MENOS FONDO SOLIDARIDAD ({$solPct}%)" : 'MENOS FONDO SOLIDARIDAD';
+        $deducciones[$lblSol] = -$solidaridad;
     }
 
     if (empty($deducciones)) {
@@ -430,6 +437,12 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
         $pdf->Cell(40, 4.5, '- $ ' . number_format($totDed, 2, ',', '.'), 1, 1, 'R', true);
     }
 
+    // Novedades en resumen contable
+    $novList = array();
+    if (!empty($liq['novedades_json'])) {
+        $novList = is_array($liq['novedades_json']) ? $liq['novedades_json'] : (json_decode($liq['novedades_json'], true) ?: array());
+    }
+
     // Fila TOTAL NETO A PAGAR
     $pdf->SetX(105);
     $pdf->SetFillColor(13, 148, 136); // Teal
@@ -441,6 +454,76 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
 
     $yDerFinal = $pdf->GetY();
     $maxY = max($yIzqFinal, $yDerFinal);
+
+    // Si existen novedades, renderizar sección detallada de novedades
+    if (!empty($novList)) {
+        if ($maxY > 220) {
+            $pdf->AddPage();
+            $maxY = 25;
+        }
+        $pdf->SetY($maxY + 3);
+        $pdf->SetFont('Arial', 'B', 8);
+        $pdf->SetTextColor(15, 23, 42);
+        $pdf->Cell(190, 4.5, utf8_decode('NOVEDADES DE LA ENTIDAD / HONORARIOS MÉDICOS'), 0, 1, 'L');
+
+        $pdf->SetFillColor(15, 23, 42);
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('Arial', 'B', 7);
+        $pdf->Cell(25, 4.5, utf8_decode('CÓDIGO'), 1, 0, 'C', true);
+        $pdf->Cell(70, 4.5, utf8_decode('CONCEPTO / NOVEDAD'), 1, 0, 'L', true);
+        $pdf->Cell(25, 4.5, utf8_decode('TIPO'), 1, 0, 'C', true);
+        $pdf->Cell(40, 4.5, utf8_decode('OBSERVACIÓN'), 1, 0, 'L', true);
+        $pdf->Cell(30, 4.5, utf8_decode('VALOR'), 1, 1, 'R', true);
+
+        $fillNov = false;
+        foreach ($novList as $nov) {
+            $esAdic = (($nov['tipo'] ?? 'ADICION') === 'ADICION');
+            $valNov = floatval($nov['valor'] ?? 0);
+            $pdf->SetFillColor($fillNov ? 248 : 255, $fillNov ? 250 : 255, $fillNov ? 252 : 255);
+            $pdf->SetTextColor(30, 41, 59);
+            $pdf->SetFont('Courier', '', 7);
+            $pdf->Cell(25, 4.2, utf8_decode($nov['codigo'] ?? '-'), 1, 0, 'C', true);
+            $pdf->SetFont('Arial', 'B', 7);
+            $pdf->Cell(70, 4.2, utf8_decode($nov['concepto'] ?? ($nov['nombre'] ?? 'Novedad')), 1, 0, 'L', true);
+            $pdf->SetFont('Arial', 'B', 6.5);
+            if ($esAdic) {
+                $pdf->SetTextColor(13, 148, 136);
+                $pdf->Cell(25, 4.2, utf8_decode('+ ADICIÓN'), 1, 0, 'C', true);
+            } else {
+                $pdf->SetTextColor(225, 29, 72);
+                $pdf->Cell(25, 4.2, utf8_decode('- DEDUCCIÓN'), 1, 0, 'C', true);
+            }
+            $pdf->SetTextColor(100, 116, 139);
+            $pdf->SetFont('Arial', '', 6.5);
+            $obsText = substr($nov['observacion'] ?? '-', 0, 32);
+            $pdf->Cell(40, 4.2, utf8_decode($obsText), 1, 0, 'L', true);
+            $pdf->SetFont('Courier', 'B', 7.5);
+            if ($esAdic) {
+                $pdf->SetTextColor(13, 148, 136);
+                $pdf->Cell(30, 4.2, '+ $ ' . number_format($valNov, 2, ',', '.'), 1, 1, 'R', true);
+            } else {
+                $pdf->SetTextColor(225, 29, 72);
+                $pdf->Cell(30, 4.2, '- $ ' . number_format($valNov, 2, ',', '.'), 1, 1, 'R', true);
+            }
+            $fillNov = !$fillNov;
+        }
+
+        // Fila Total Novedades
+        $pdf->SetFillColor(241, 245, 249);
+        $pdf->SetTextColor(15, 23, 42);
+        $pdf->SetFont('Arial', 'B', 7.5);
+        $pdf->Cell(160, 4.5, utf8_decode('IMPACTO NETO NOVEDADES:'), 1, 0, 'R', true);
+        $pdf->SetFont('Courier', 'B', 8);
+        if ($totNovNeto >= 0) $pdf->SetTextColor(13, 148, 136); else $pdf->SetTextColor(225, 29, 72);
+        $pdf->Cell(30, 4.5, ($totNovNeto >= 0 ? '+ ' : '- ') . '$ ' . number_format(abs($totNovNeto), 2, ',', '.'), 1, 1, 'R', true);
+
+        $maxY = $pdf->GetY();
+    }
+
+    if ($maxY > 255) {
+        $pdf->AddPage();
+        $maxY = 22;
+    }
 
     // 4. Huella Digital SHA-256 e Integridad Criptográfica
     $pdf->SetY($maxY + 4);
@@ -561,7 +644,7 @@ function generarExcelLiquidacion($liquidacionIdOrData) {
                     $esBoni ? 'N/A' : '',
                     $esBoni ? 'LIHO IPS' : '',
                     $esBoni ? 'BONI_TOHO' : $cKey,
-                    $esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)' : 'ESTUDIOS MEDICOS / RXSI',
+                    $esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)' : ('ESTUDIOS MÉDICOS / ' . $cKey),
                     $cant,
                     $valPagar
                 );
@@ -582,11 +665,40 @@ function generarExcelLiquidacion($liquidacionIdOrData) {
                 'PACIENTES SEDE',
                 '',
                 '',
-                'RXSI',
+                'ESTUDIOS REALIZADOS',
                 'ESTUDIOS MEDICOS',
                 $totalSedeCant,
                 $totalSedeVal
             );
+        }
+    }
+
+    // Incluir Novedades de la Liquidación en el Excel
+    if (!empty($liq['novedades_json'])) {
+        $novListExcel = is_array($liq['novedades_json']) ? $liq['novedades_json'] : (json_decode($liq['novedades_json'], true) ?: array());
+        if (!empty($novListExcel)) {
+            foreach ($novListExcel as $nov) {
+                $tipoNov = strtoupper($nov['tipo'] ?? 'ADICION');
+                $valNov  = floatval($nov['valor'] ?? 0);
+                $rows[] = array(
+                    'NOVEDAD',
+                    $nov['codigo'] ?? '',
+                    'LIHO',
+                    $tipoNov,
+                    'Novedad Entidad',
+                    $liq['periodo_hasta'] ?? '',
+                    'GENERAL / TODAS',
+                    $liq['medico_nombre'],
+                    $liq['medico_cedula'],
+                    'CONCEPTO NOVEDAD',
+                    '',
+                    'HERNAN OCAZIONEZ',
+                    $nov['codigo'] ?? 'NOV',
+                    '[' . $tipoNov . '] ' . ($nov['concepto'] ?? ($nov['nombre'] ?? 'Novedad')) . (!empty($nov['observacion']) ? ' - ' . $nov['observacion'] : ''),
+                    1,
+                    ($tipoNov === 'ADICION' ? 1 : -1) * $valNov
+                );
+            }
         }
     }
 

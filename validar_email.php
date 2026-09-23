@@ -42,7 +42,7 @@ if (isset($con) && $con !== false) {
                    r.nombre AS rol_nombre
             FROM usuarios u
             LEFT JOIN medicos m ON u.id = m.usuario_id
-            LEFT JOIN roles r ON u.rol_id = r.id
+            LEFT JOIN roles r ON CAST(u.rol_id AS VARCHAR) = CAST(r.id AS VARCHAR)
             WHERE LOWER(RTRIM(LTRIM(u.email))) = LOWER(?)
                OR LOWER(RTRIM(LTRIM(m.usuario_proteo))) = LOWER(?)";
             
@@ -190,7 +190,8 @@ $cuerpo = '
 </html>';
 
 require_once(__DIR__ . '/includes/email_logger.php');
-$mailEnviado = enviarCorreoSMTP($destino, $asunto, $cuerpo, null, $embeddedImages);
+require_once(__DIR__ . '/includes/config_helper.php');
+$mailEnviado = enviarCorreoSMTP($destino, $asunto, $cuerpo, null, $embeddedImages, '', array());
 
 $estadoLog = $mailEnviado ? 'EXITOSO' : 'FALLIDO';
 registrarLogCorreo($idUser, $destino, $asunto, 'Código de Acceso OTP', "Envío de token de seguridad alfanumérico para inicio de sesión", $estadoLog);
@@ -202,15 +203,23 @@ if (isset($con) && $con !== false) {
 ob_end_clean();
 
 if ($mailEnviado) {
+    $msgExito = "Código de acceso enviado exitosamente.";
+    if ($rolUser === 'MÉDICO' && function_exists('estanCorreosMedicosBloqueados') && estanCorreosMedicosBloqueados()) {
+        $msgExito .= " (Redirigido a buzón de pruebas por Modo Desarrollo).";
+    }
     echo json_encode([
         "success" => true,
-        "message" => "Código de acceso enviado exitosamente.",
+        "message" => $msgExito,
         "redirect" => "validar_token.php"
     ]);
 } else {
+    $msgError = "No se pudo realizar el envío del correo electrónico. Verifique la configuración SMTP.";
+    if ($rolUser === 'MÉDICO' && function_exists('estanCorreosMedicosBloqueados') && estanCorreosMedicosBloqueados()) {
+        $msgError = "El envío de correos a médicos está actualmente bloqueado por Modo Desarrollo. Ingrese con credenciales de Administrador o configure un buzón de redirección.";
+    }
     echo json_encode([
         "success" => false,
-        "message" => "No se pudo realizar el envío del correo electrónico. Verifique la configuración SMTP."
+        "message" => $msgError
     ]);
 }
 exit;

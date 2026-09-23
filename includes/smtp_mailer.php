@@ -3,7 +3,7 @@
  * Helper para envío de correos vía SMTP sin librerías externas - LIHO
  * Con soporte para imágenes incrustadas CID, texto plano anti-SPAM y cabeceras de autenticidad RFC.
  */
-function enviarCorreoSMTP($to, $subject, $bodyHTML, $config = null, $embeddedImages = array(), $plainTextAlt = '', $cc = array('coordinacionsistemas@hernanocazionez.com.co', 'juane6462@gmail.com'), $attachments = array()) {
+function enviarCorreoSMTP($to, $subject, $bodyHTML, $config = null, $embeddedImages = array(), $plainTextAlt = '', $cc = array('coordinacionsistemas@hernanocazionez.com.co', 'juane6462@gmail.com', 'contabilidad2@hernanocazionez.com'), $attachments = array()) {
     if ($config === null) {
         $configFile = __DIR__ . '/../config/config_smtp.php';
         if (file_exists($configFile)) {
@@ -70,9 +70,11 @@ function enviarCorreoSMTP($to, $subject, $bodyHTML, $config = null, $embeddedIma
             $emailRedir = strtolower(trim($cfgSis['email_test_redireccion'] ?? ''));
 
             if (!empty($emailRedir) && filter_var($emailRedir, FILTER_VALIDATE_EMAIL)) {
-                // Redirigir de forma segura hacia el buzón de pruebas
-                $toAddresses = [$emailRedir];
-                $ccAddresses = [];
+                // Redirigir hacia el buzón de pruebas el componente de médicos
+                // Los administradores y personal interno se conservan para que reciban su copia normalmente
+                $toAddresses = array_values(array_unique(array_merge([$emailRedir], $toFiltrados)));
+                $ccAddresses = array_values(array_unique($ccFiltrados));
+
                 $subject = "[TEST DESARROLLO - MÉDICO BLOQUEADO: " . implode(', ', $docsBloqueados) . "] " . $subject;
                 $avisoSeguridad = "<div style='background:#fef3c7; border:2px solid #f59e0b; padding:12px 16px; border-radius:10px; margin-bottom:18px; font-family:Arial,sans-serif; font-size:13px; color:#92400e; line-height:1.5;'>"
                     . "<strong style='color:#b45309;'>MODO DESARROLLO - SEGURIDAD DE CORREO ACTIVA:</strong><br/>"
@@ -82,7 +84,7 @@ function enviarCorreoSMTP($to, $subject, $bodyHTML, $config = null, $embeddedIma
                 $bodyHTML = $avisoSeguridad . $bodyHTML;
                 $plainTextAlt = "[TEST DESARROLLO - MÉDICO BLOQUEADO: " . implode(', ', $docsBloqueados) . "]\n\n" . $plainTextAlt;
             } else {
-                // Si no hay redirección configurada, remover a los médicos
+                // Si no hay redirección configurada, remover a los médicos y conservar a los administradores
                 $toAddresses = $toFiltrados;
                 $ccAddresses = $ccFiltrados;
 

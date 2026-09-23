@@ -68,6 +68,7 @@ function obtenerModulosSistema() {
         'examenes_excluidos' => array('nombre' => 'Auditoría de Exámenes Excluidos', 'descripcion' => 'Historial y justificaciones obligatorias de exámenes excluidos', 'icono' => 'do_not_disturb_on'),
         'logs_correos' => array('nombre' => 'Auditoría e Historial de Correos', 'descripcion' => 'Historial y registros de envíos de correo en SQL Server', 'icono' => 'mail_lock'),
         'maestro_entidades' => array('nombre' => 'Maestro de Entidades / IPS', 'descripcion' => 'Registro de empresas, IPS e instituciones para vinculación médica', 'icono' => 'domain'),
+        'maestro_novedades' => array('nombre' => 'Maestro de Novedades', 'descripcion' => 'Catálogo institucional de conceptos y novedades de honorarios y nómina por entidad', 'icono' => 'campaign'),
         'gestion_roles' => array('nombre' => 'Gestión de Roles y Permisos', 'descripcion' => 'Administración de roles institucionales y matriz de accesos por pantalla', 'icono' => 'admin_panel_settings')
     );
 }
@@ -251,6 +252,7 @@ function tienePermisoModulo($usuarioId, $rolId, $moduloClave) {
         if ($moduloClave === 'notas_ajuste') return true;
         if ($moduloClave === 'alerta_medicos') return true;
         if ($moduloClave === 'maestro_entidades') return true;
+        if ($moduloClave === 'maestro_novedades') return true;
         if ($moduloClave === 'estadisticas') return true;
         if ($moduloClave === 'examenes_medicos') return true;
         if ($moduloClave === 'gestion_medicos_procedimientos') return true;

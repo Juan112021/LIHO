@@ -134,6 +134,28 @@ if ($action === 'obtener_catalogo_cups') {
     exit;
 }
 
+if ($action === 'obtener_novedades_entidad') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $entidadId = $_GET['entidad_id'] ?? null;
+    $novedades = obtenerNovedadesEntidadBD($entidadId, true);
+    echo json_encode(array('success' => true, 'data' => $novedades));
+    exit;
+}
+
+if ($action === 'registrar_log_toggle_novedades') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $refId  = $_GET['referencia_id'] ?? '0';
+    $entId  = $_GET['entidad_id'] ?? 'PROPIO';
+    $medico = $_GET['medico'] ?? 'MÉDICO';
+    $activo = isset($_GET['activo']) ? ($_GET['activo'] === '1' || $_GET['activo'] === 'true') : true;
+
+    registrarLogToggleNovedades('NOTA_AJUSTE', $refId, $entId, $medico, $userId, $userName, $userRole, $activo);
+    echo json_encode(array('success' => true));
+    exit;
+}
+
 if ($action === 'guardar_nota') {
     if (ob_get_length()) ob_clean();
     header('Content-Type: application/json; charset=utf-8');
@@ -518,15 +540,27 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
 
                     <!-- Paso 3: Desglose Dinámico de Ítems / Conceptos del Ajuste -->
                     <div class="space-y-3 pt-2">
-                        <div class="flex items-center justify-between">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
                             <label class="text-xs font-black font-outfit uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                 <span class="material-symbols-outlined text-tertiary text-base">format_list_bulleted</span>
                                 <span>Conceptos / Ítems de Ajuste</span>
                             </label>
-                            <button type="button" onclick="agregarFilaItemAjuste()" class="px-3 py-1.5 rounded-xl bg-tertiary/10 hover:bg-tertiary/20 text-tertiary font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition-colors">
-                                <span class="material-symbols-outlined text-sm">add</span>
-                                <span>Agregar Ítem</span>
-                            </button>
+
+                            <div class="flex items-center gap-2.5">
+                                <!-- Checkbox / Interruptor "¿Registra novedades?" -->
+                                <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50/90 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-700/80 rounded-xl shadow-xs">
+                                    <label for="chkRegistraNovedadesNota" class="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5 cursor-pointer select-none">
+                                        <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-base">campaign</span>
+                                        <span>¿Registra novedades?</span>
+                                    </label>
+                                    <input type="checkbox" id="chkRegistraNovedadesNota" onchange="alCambiarToggleNovedadesNota(this)" class="w-4 h-4 text-amber-600 bg-white dark:bg-slate-800 border-amber-400 rounded focus:ring-amber-500 cursor-pointer" />
+                                </div>
+
+                                <button type="button" onclick="agregarFilaItemAjuste()" class="px-3 py-1.5 rounded-xl bg-tertiary/10 hover:bg-tertiary/20 text-tertiary font-bold text-xs inline-flex items-center gap-1 cursor-pointer transition-colors">
+                                    <span class="material-symbols-outlined text-sm">add</span>
+                                    <span>Agregar Ítem</span>
+                                </button>
+                            </div>
                         </div>
 
                         <datalist id="cupsDatalist"></datalist>
@@ -549,6 +583,21 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                                     <!-- Filas generadas dinámicamente -->
                                 </tbody>
                             </table>
+                        </div>
+
+                        <!-- Resumen Dinámico de Novedades Aplicadas en la Nota -->
+                        <div id="containerNovedadesNotaResumen" class="hidden p-3 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 space-y-2">
+                            <div class="flex items-center justify-between text-xs font-bold text-amber-900 dark:text-amber-200">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-sm text-amber-600 dark:text-amber-400">campaign</span>
+                                    <span>Novedades de la Entidad Incorporadas</span>
+                                </span>
+                                <button type="button" onclick="abrirModalNovedadesNota()" class="text-[11px] text-amber-700 dark:text-amber-400 hover:underline flex items-center gap-0.5 cursor-pointer font-bold">
+                                    <span class="material-symbols-outlined text-xs">edit_note</span>
+                                    <span>Modificar Novedades</span>
+                                </button>
+                            </div>
+                            <div id="listaNovedadesNotaBadges" class="flex flex-wrap gap-2"></div>
                         </div>
                     </div>
 
@@ -612,6 +661,13 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                                     <span class="text-slate-500 dark:text-slate-400 text-[11px]">Impacto Deducciones de Ley:</span>
                                     <span class="font-mono font-bold text-rose-600 dark:text-rose-400" id="resumenDeltaDeducciones">$ 0</span>
                                 </div>
+                                <div id="resumenNovedadesRow" class="hidden flex items-center justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                                    <span class="text-amber-600 dark:text-amber-400 text-[11px] font-semibold flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-xs">campaign</span>
+                                        <span>Novedades Entidad:</span>
+                                    </span>
+                                    <span class="font-mono font-bold text-amber-700 dark:text-amber-300" id="resumenNovedadesAjuste">$ 0</span>
+                                </div>
                                 <div class="flex items-center justify-between py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 px-2.5 border border-slate-200 dark:border-slate-700/60">
                                     <span class="text-slate-700 dark:text-slate-200 font-bold text-[11px]">(=) Ajuste Neto Real:</span>
                                     <span class="font-mono font-black text-sm text-teal-700 dark:text-emerald-400" id="resumenValorAjuste">$ 0</span>
@@ -646,6 +702,64 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 </div>
 
             </form>
+
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL 1.1: Registrar Novedades de la Entidad en Nota de Ajuste -->
+    <!-- ========================================================================= -->
+    <div id="modalNovedadesNota" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md">
+        <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full shadow-2xl border border-amber-300 dark:border-amber-700/60 flex flex-col max-h-[90vh] overflow-hidden animate__animated animate__zoomIn animate__faster">
+            
+            <div class="px-6 py-4 border-b border-amber-200 dark:border-amber-800/60 flex items-center justify-between bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                        <span class="material-symbols-outlined text-2xl">campaign</span>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black font-outfit text-slate-900 dark:text-white">Novedades de la Entidad</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400" id="modalNovNotaSubhead">Catálogo de novedades disponible para esta liquidación</p>
+                    </div>
+                </div>
+                <button type="button" onclick="cerrarModalNovedadesNota()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined text-xl">close</span>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
+                <div id="modalNovNotaLoading" class="py-8 text-center text-slate-400">
+                    <span class="material-symbols-outlined text-3xl animate-spin text-amber-500 mb-2">sync</span>
+                    <p class="text-xs font-semibold">Consultando catálogo de novedades de la entidad...</p>
+                </div>
+
+                <div id="modalNovNotaEmpty" class="hidden py-8 text-center text-slate-400">
+                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600 mb-2">info</span>
+                    <p class="text-xs font-semibold">No hay novedades activas configuradas para esta entidad en el Maestro de Novedades.</p>
+                    <a href="maestro_novedades.php" target="_blank" class="mt-2 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline font-bold">
+                        <span class="material-symbols-outlined text-xs">open_in_new</span> Ir al Maestro de Novedades
+                    </a>
+                </div>
+
+                <div id="modalNovNotaCards" class="hidden space-y-3">
+                    <!-- Dinámico: cards con checkbox, código, nombre, tipo, input de valor e input de observación -->
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/50">
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                    <span id="modalNovNotaSeleccionadasCount" class="font-bold text-amber-600 dark:text-amber-400 font-mono">0</span> novedad(es) seleccionada(s)
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="cerrarModalNovedadesNota()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                        Cancelar
+                    </button>
+                    <button type="button" onclick="aplicarNovedadesANota()" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-md shadow-amber-600/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer">
+                        <span class="material-symbols-outlined text-base">check_circle</span>
+                        <span>Aplicar al Ajuste</span>
+                    </button>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -718,7 +832,8 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
         let liquidacionesDisponiblesCache = [];
         let liquidacionSeleccionadaActual = null;
         let catalogoCupsCache = {};
-        window.sedesDisponibles = ['ENVIGADO', 'POBLADO', 'UNICENTRO', 'SABANETA', 'CENTRO 101', 'CALDAS', 'CENTRO 907', 'BELLO', 'ITAGÜÍ', 'LAURELES', 'GENERAL'];
+        const SEDES_MAESTRAS = ['ENVIGADO', 'POBLADO', 'UNICENTRO', 'SABANETA', 'CENTRO 101', 'CALDAS', 'CENTRO 907', 'BELLO', 'ITAGÜÍ', 'LAURELES', 'GENERAL'];
+        window.sedesDisponibles = [...SEDES_MAESTRAS];
 
         document.addEventListener('DOMContentLoaded', () => {
             actualizarLabelPeriodo();
@@ -772,7 +887,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
         function generarOpcionesSedesHtml(selectedVal = '') {
             const list = (window.sedesDisponibles && window.sedesDisponibles.length > 0) 
                 ? window.sedesDisponibles 
-                : ['ENVIGADO', 'POBLADO', 'UNICENTRO', 'SABANETA', 'CENTRO 101', 'CALDAS', 'CENTRO 907', 'BELLO', 'ITAGÜÍ', 'LAURELES', 'GENERAL'];
+                : SEDES_MAESTRAS;
             
             let html = '';
             list.forEach(s => {
@@ -1002,7 +1117,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 tr.className = "hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors";
 
                 const valAjuste = floatval(n.valor_ajuste || 0);
-                const esCredito = (n.tipo_nota === 'CREDITO' || valAjuste > 0);
+                const esCredito = (n.tipo_nota === 'CREDITO' && valAjuste >= 0) || (valAjuste > 0 && n.tipo_nota !== 'DEBITO');
 
                 let badgeTipo = esCredito
                     ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center gap-1 w-24 mx-auto"><span class="material-symbols-outlined text-xs">add_circle</span> CRÉDITO</span>`
@@ -1034,7 +1149,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                         ${badgeTipo}
                     </td>
                     <td class="py-3.5 px-4 text-right font-mono font-black ${esCredito ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">
-                        ${esCredito ? '+ ' : ''}$ ${Math.abs(valAjuste).toLocaleString('es-CO')}
+                        ${esCredito ? '+ ' : '- '}$ ${Math.abs(valAjuste).toLocaleString('es-CO')}
                     </td>
                     <td class="py-3.5 px-4 text-right font-mono font-black text-primary dark:text-tertiary">
                         $ ${floatval(n.total_ajustado || 0).toLocaleString('es-CO')}
@@ -1091,6 +1206,10 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             document.getElementById('formCrearNota').reset();
             document.getElementById('itemsAjusteTableBody').innerHTML = '';
             document.getElementById('snapshotLiqOriginal').classList.add('hidden');
+            window.novedadesNotaAplicadas = [];
+            const chkNov = document.getElementById('chkRegistraNovedadesNota');
+            if (chkNov) chkNov.checked = false;
+            actualizarResumenBadgesNovedadesNota();
             
             if (!liquidacionesDisponiblesCache || liquidacionesDisponiblesCache.length === 0) {
                 await cargarLiquidacionesSelect(preselectedId);
@@ -1116,13 +1235,274 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             window.edicionRetencionActiva = false;
             window.retencionManualPct = null;
             window.anotacionRetencion = '';
+            window.novedadesNotaAplicadas = [];
+            const chk = document.getElementById('chkRegistraNovedadesNota');
+            if (chk) chk.checked = false;
+            actualizarResumenBadgesNovedadesNota();
             document.getElementById('modalCrearNota').classList.add('hidden');
+        }
+
+        window.novedadesNotaAplicadas = [];
+        window.catalogoNovedadesEntidadCache = {};
+
+        async function alCambiarToggleNovedadesNota(chk) {
+            const isChecked = chk.checked;
+            const liq = liquidacionSeleccionadaActual;
+
+            if (isChecked) {
+                if (!liq || !liq.id) {
+                    chk.checked = false;
+                    SwalCustom.fire({
+                        icon: 'info',
+                        title: 'Liquidación requerida',
+                        text: 'Seleccione primero una liquidación base para consultar las novedades disponibles para su entidad.'
+                    });
+                    return;
+                }
+
+                // Registrar en logs de auditoría que activó el registro de novedades
+                fetch(`notas_ajuste.php?action=registrar_log_toggle_novedades&referencia_id=${liq.id}&entidad_id=${encodeURIComponent(liq.entidad_id || 'PROPIO')}&medico=${encodeURIComponent(liq.medico_nombre || '')}&activo=1`);
+
+                abrirModalNovedadesNota();
+            } else {
+                if (window.novedadesNotaAplicadas && window.novedadesNotaAplicadas.length > 0) {
+                    const confirmDeselect = await SwalCustom.fire({
+                        title: '¿Remover novedades?',
+                        text: 'Al desmarcar esta opción se removerán todas las novedades que había agregado a los conceptos del ajuste.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, remover novedades',
+                        cancelButtonText: 'Mantener novedades'
+                    });
+
+                    if (!confirmDeselect.isConfirmed) {
+                        chk.checked = true;
+                        return;
+                    }
+
+                    // Remover filas de novedades de la tabla
+                    document.querySelectorAll('#itemsAjusteTableBody tr[data-is-novedad="1"]').forEach(tr => tr.remove());
+                    window.novedadesNotaAplicadas = [];
+                    actualizarResumenBadgesNovedadesNota();
+                    recalcularTotalesAjuste();
+                }
+
+                if (liq && liq.id) {
+                    fetch(`notas_ajuste.php?action=registrar_log_toggle_novedades&referencia_id=${liq.id}&entidad_id=${encodeURIComponent(liq.entidad_id || 'PROPIO')}&medico=${encodeURIComponent(liq.medico_nombre || '')}&activo=0`);
+                }
+            }
+        }
+
+        async function abrirModalNovedadesNota() {
+            const liq = liquidacionSeleccionadaActual;
+            if (!liq) {
+                SwalCustom.fire({ icon: 'warning', title: 'Atención', text: 'Debe seleccionar una liquidación base.' });
+                return;
+            }
+
+            const entidadId = liq.entidad_id || 'PROPIO';
+            const modal = document.getElementById('modalNovedadesNota');
+            const subhead = document.getElementById('modalNovNotaSubhead');
+            const loading = document.getElementById('modalNovNotaLoading');
+            const empty = document.getElementById('modalNovNotaEmpty');
+            const cardsContainer = document.getElementById('modalNovNotaCards');
+
+            subhead.textContent = `Entidad: ${entidadId} • Liquidación #${liq.id} (${liq.medico_nombre})`;
+            modal.classList.remove('hidden');
+
+            loading.classList.remove('hidden');
+            empty.classList.add('hidden');
+            cardsContainer.classList.add('hidden');
+            cardsContainer.innerHTML = '';
+
+            try {
+                let novedades = window.catalogoNovedadesEntidadCache[entidadId];
+                if (!novedades) {
+                    const res = await fetch(`notas_ajuste.php?action=obtener_novedades_entidad&entidad_id=${encodeURIComponent(entidadId)}`);
+                    const json = await res.json();
+                    if (json.success && Array.isArray(json.data)) {
+                        novedades = json.data;
+                        window.catalogoNovedadesEntidadCache[entidadId] = novedades;
+                    } else {
+                        novedades = [];
+                    }
+                }
+
+                loading.classList.add('hidden');
+
+                if (novedades.length === 0) {
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                cardsContainer.classList.remove('hidden');
+
+                // Renderizar cards
+                novedades.forEach((nov, idx) => {
+                    const yaAplicada = (window.novedadesNotaAplicadas || []).find(n => n.codigo === nov.codigo);
+                    const isChecked = !!yaAplicada;
+                    const valorActual = yaAplicada ? yaAplicada.valor : floatval(nov.valor_predeterminado || 0);
+                    const obsActual = yaAplicada ? (yaAplicada.observacion || '') : '';
+                    const esAdicion = (nov.tipo === 'ADICION');
+
+                    const card = document.createElement('div');
+                    card.className = `p-4 rounded-2xl border transition-all ${isChecked ? 'bg-amber-500/10 border-amber-500 dark:border-amber-400' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-amber-400'}`;
+                    card.setAttribute('data-nov-codigo', nov.codigo);
+
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <input type="checkbox" id="chkNovNota_${idx}" ${isChecked ? 'checked' : ''} onchange="alCambiarCheckCardNovedadNota(this)" class="nov-card-check mt-1 w-4 h-4 text-amber-600 bg-white dark:bg-slate-800 border-amber-400 rounded focus:ring-amber-500 cursor-pointer" />
+                            <div class="flex-1 space-y-2">
+                                <div class="flex items-center justify-between flex-wrap gap-2">
+                                    <label for="chkNovNota_${idx}" class="font-bold text-xs text-slate-800 dark:text-slate-100 cursor-pointer flex items-center gap-1.5">
+                                        <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-black">${nov.codigo}</span>
+                                        <span>${htmlspecialchars(nov.nombre)}</span>
+                                    </label>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${esAdicion ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300 dark:border-rose-700'}">
+                                        ${esAdicion ? '+ ADICIÓN' : '- DEDUCCIÓN'}
+                                    </span>
+                                </div>
+                                ${nov.descripcion ? `<p class="text-[11px] text-slate-500 dark:text-slate-400">${htmlspecialchars(nov.descripcion)}</p>` : ''}
+                                
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                    <div>
+                                        <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Valor ($ COP)</label>
+                                        <input type="number" step="0.01" min="0" value="${valorActual}" placeholder="0" class="nov-card-valor w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500" />
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Observación / Detalle</label>
+                                        <input type="text" value="${htmlspecialchars(obsActual)}" placeholder="Opcional..." class="nov-card-obs w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-2 text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-amber-500" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    card._novData = nov;
+                    cardsContainer.appendChild(card);
+                });
+
+                actualizarConteoSeleccionadasNovedadesNota();
+
+            } catch(e) {
+                loading.classList.add('hidden');
+                empty.classList.remove('hidden');
+                console.error("Error al cargar novedades de la entidad:", e);
+            }
+        }
+
+        function alCambiarCheckCardNovedadNota(inputEl) {
+            const card = inputEl.closest('[data-nov-codigo]');
+            if (inputEl.checked) {
+                card.classList.add('bg-amber-500/10', 'border-amber-500', 'dark:border-amber-400');
+                card.classList.remove('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700/80');
+            } else {
+                card.classList.remove('bg-amber-500/10', 'border-amber-500', 'dark:border-amber-400');
+                card.classList.add('bg-slate-50', 'dark:bg-slate-800/60', 'border-slate-200', 'dark:border-slate-700/80');
+            }
+            actualizarConteoSeleccionadasNovedadesNota();
+        }
+
+        function actualizarConteoSeleccionadasNovedadesNota() {
+            const count = document.querySelectorAll('#modalNovNotaCards .nov-card-check:checked').length;
+            const el = document.getElementById('modalNovNotaSeleccionadasCount');
+            if (el) el.textContent = count;
+        }
+
+        function cerrarModalNovedadesNota() {
+            document.getElementById('modalNovedadesNota').classList.add('hidden');
+            if (!window.novedadesNotaAplicadas || window.novedadesNotaAplicadas.length === 0) {
+                const chk = document.getElementById('chkRegistraNovedadesNota');
+                if (chk) chk.checked = false;
+            }
+        }
+
+        function aplicarNovedadesANota() {
+            const cardEls = document.querySelectorAll('#modalNovNotaCards [data-nov-codigo]');
+            const seleccionadas = [];
+
+            cardEls.forEach(card => {
+                const chk = card.querySelector('.nov-card-check');
+                if (chk && chk.checked) {
+                    const nov = card._novData;
+                    const val = parseFloat(card.querySelector('.nov-card-valor')?.value) || 0;
+                    const obs = (card.querySelector('.nov-card-obs')?.value || '').trim();
+
+                    seleccionadas.push({
+                        id: nov.id,
+                        codigo: nov.codigo,
+                        nombre: nov.nombre,
+                        tipo: nov.tipo,
+                        valor: val,
+                        observacion: obs
+                    });
+                }
+            });
+
+            // Remover filas viejas de novedades en la tabla de conceptos
+            document.querySelectorAll('#itemsAjusteTableBody tr[data-is-novedad="1"]').forEach(tr => tr.remove());
+
+            // Agregar cada novedad seleccionada como ítem de ajuste
+            seleccionadas.forEach(item => {
+                const conceptoCompleto = `[NOVEDAD] ${item.nombre}${item.observacion ? ' - ' + item.observacion : ''}`;
+                agregarFilaItemAjuste({
+                    is_novedad: 1,
+                    nov_tipo: item.tipo,
+                    nov_codigo: item.codigo,
+                    cups: item.codigo,
+                    concepto: conceptoCompleto,
+                    cantidad: 1,
+                    valor_unitario: item.valor
+                });
+            });
+
+            window.novedadesNotaAplicadas = seleccionadas;
+            actualizarResumenBadgesNovedadesNota();
+
+            const chkMain = document.getElementById('chkRegistraNovedadesNota');
+            if (chkMain) chkMain.checked = (seleccionadas.length > 0);
+
+            cerrarModalNovedadesNota();
+            recalcularTotalesAjuste();
+        }
+
+        function actualizarResumenBadgesNovedadesNota() {
+            const container = document.getElementById('containerNovedadesNotaResumen');
+            const listaBadges = document.getElementById('listaNovedadesNotaBadges');
+            if (!container || !listaBadges) return;
+
+            const items = window.novedadesNotaAplicadas || [];
+            if (items.length === 0) {
+                container.classList.add('hidden');
+                listaBadges.innerHTML = '';
+                return;
+            }
+
+            container.classList.remove('hidden');
+            let badgesHtml = '';
+            items.forEach(nov => {
+                const esAdicion = (nov.tipo === 'ADICION');
+                badgesHtml += `
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold ${esAdicion ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-300'}">
+                        <span>${esAdicion ? '+' : '-'}</span>
+                        <span class="font-mono text-[10px]">${nov.codigo}</span>
+                        <span>${htmlspecialchars(nov.nombre)}:</span>
+                        <strong class="font-mono">$ ${floatval(nov.valor || 0).toLocaleString('es-CO')}</strong>
+                    </span>
+                `;
+            });
+            listaBadges.innerHTML = badgesHtml;
         }
 
         async function alCambiarLiquidacionBase() {
             window.edicionRetencionActiva = false;
             window.retencionManualPct = null;
             window.anotacionRetencion = '';
+            window.novedadesNotaAplicadas = [];
+            const chkNov = document.getElementById('chkRegistraNovedadesNota');
+            if (chkNov) chkNov.checked = false;
+            actualizarResumenBadgesNovedadesNota();
+            document.querySelectorAll('#itemsAjusteTableBody tr[data-is-novedad="1"]').forEach(tr => tr.remove());
             const id = document.getElementById('selectLiquidacionBase').value;
             const snap = document.getElementById('snapshotLiqOriginal');
             if (!id) {
@@ -1153,9 +1533,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                     let rawSedes = result.data.resumen_sedes_json || result.data.detalles_json || '{}';
                     let sedesObj = typeof rawSedes === 'string' ? JSON.parse(rawSedes) : (rawSedes || {});
                     let sedesKeys = Object.keys(sedesObj).sort();
-                    if (sedesKeys.length > 0) {
-                        window.sedesDisponibles = sedesKeys;
-                    }
+                    window.sedesDisponibles = Array.from(new Set([...SEDES_MAESTRAS, ...sedesKeys]));
 
                     // Actualizar selects de sede existentes en la tabla
                     document.querySelectorAll('#itemsAjusteTableBody .item-sede').forEach(sel => {
@@ -1174,6 +1552,12 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             const tr = document.createElement('tr');
             tr.className = "hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors";
 
+            if (prefill.is_novedad) {
+                tr.setAttribute('data-is-novedad', '1');
+                tr.setAttribute('data-nov-tipo', prefill.nov_tipo || 'ADICION');
+                tr.setAttribute('data-nov-codigo', prefill.nov_codigo || '');
+            }
+
             const defaultSede = prefill.sede || (window.sedesDisponibles && window.sedesDisponibles.length > 0 ? window.sedesDisponibles[0] : 'ENVIGADO');
             const defaultCups = prefill.cups || '';
             const defaultTipoPac = (prefill.tipo_paciente && prefill.tipo_paciente.toUpperCase() === 'P') ? 'P' : 'E';
@@ -1181,6 +1565,8 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             const defaultCant = prefill.cantidad || 1;
             const defaultVal = (prefill.valor_unitario !== undefined) ? prefill.valor_unitario : 0;
             const defaultSub = defaultCant * defaultVal;
+            const isNov = !!prefill.is_novedad;
+            const novTipo = prefill.nov_tipo || 'ADICION';
 
             tr.innerHTML = `
                 <td class="py-2 px-2">
@@ -1189,25 +1575,25 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                     </select>
                 </td>
                 <td class="py-2 px-2">
-                    <input type="text" list="cupsDatalist" value="${htmlspecialchars(defaultCups)}" placeholder="Ej: 871010" oninput="alCambiarCupsFila(this)" onchange="alCambiarCupsFila(this)" class="item-cups w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 uppercase outline-none focus:ring-1 focus:ring-tertiary" />
+                    <input type="text" list="cupsDatalist" value="${htmlspecialchars(defaultCups)}" placeholder="Ej: 871010" ${isNov ? 'readonly' : ''} oninput="alCambiarCupsFila(this)" onchange="alCambiarCupsFila(this)" class="item-cups w-full ${isNov ? 'bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200'} border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-mono font-bold uppercase outline-none focus:ring-1 focus:ring-tertiary" />
                 </td>
                 <td class="py-2 px-2">
-                    <select onchange="alCambiarTipoPacienteFila(this)" class="item-tipo-paciente w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-tertiary">
+                    <select onchange="alCambiarTipoPacienteFila(this)" ${isNov ? 'disabled' : ''} class="item-tipo-paciente w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-tertiary">
                         <option value="E" ${defaultTipoPac === 'E' ? 'selected' : ''}>Empresa</option>
                         <option value="P" ${defaultTipoPac === 'P' ? 'selected' : ''}>Particular</option>
                     </select>
                 </td>
                 <td class="py-2 px-2">
-                    <input type="text" value="${htmlspecialchars(defaultConcepto)}" readonly placeholder="Automático según CUPS" class="item-concepto w-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl p-2.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-not-allowed select-none outline-none" />
+                    <input type="text" value="${htmlspecialchars(defaultConcepto)}" ${isNov ? '' : 'readonly'} placeholder="Automático según CUPS" oninput="recalcularTotalesAjuste()" class="item-concepto w-full ${isNov ? 'bg-amber-50/50 dark:bg-amber-950/20 font-bold text-amber-900 dark:text-amber-200' : 'bg-slate-100 dark:bg-slate-800/60 font-semibold text-slate-600 dark:text-slate-300 cursor-not-allowed select-none'} border border-slate-200 dark:border-slate-700/80 rounded-xl p-2.5 text-xs outline-none" />
                 </td>
                 <td class="py-2 px-2 text-center">
                     <input type="number" min="1" value="${defaultCant}" oninput="calcularSubtotalFila(this)" class="item-cantidad w-16 text-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-1 focus:ring-tertiary" />
                 </td>
                 <td class="py-2 px-2 text-right">
-                    <input type="number" step="0.01" min="0" value="${defaultVal}" readonly class="item-valor w-28 text-right bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-xl p-2.5 text-xs font-mono font-bold text-slate-600 dark:text-slate-300 cursor-not-allowed select-none outline-none" />
+                    <input type="number" step="0.01" min="0" value="${defaultVal}" ${isNov ? '' : 'readonly'} oninput="calcularSubtotalFila(this)" class="item-valor w-28 text-right ${isNov ? 'bg-white dark:bg-slate-900 border-amber-300 text-amber-700 dark:text-amber-300' : 'bg-slate-100 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 cursor-not-allowed select-none'} border rounded-xl p-2.5 text-xs font-mono font-bold outline-none" />
                 </td>
-                <td class="py-2 px-2 text-right font-mono font-bold text-slate-800 dark:text-slate-200 item-subtotal-label whitespace-nowrap">
-                    $ ${defaultSub.toLocaleString('es-CO')}
+                <td class="py-2 px-2 text-right font-mono font-bold ${isNov ? (novTipo === 'ADICION' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400') : 'text-slate-800 dark:text-slate-200'} item-subtotal-label whitespace-nowrap">
+                    ${isNov ? (novTipo === 'ADICION' ? '+ ' : '- ') : ''}$ ${defaultSub.toLocaleString('es-CO')}
                 </td>
                 <td class="py-2 px-1 text-center">
                     <button type="button" onclick="eliminarFilaItem(this)" class="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 transition-colors" title="Eliminar ítem">
@@ -1224,14 +1610,28 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             const cant = parseFloat(tr.querySelector('.item-cantidad').value) || 0;
             const val  = parseFloat(tr.querySelector('.item-valor').value) || 0;
             const sub  = cant * val;
-            tr.querySelector('.item-subtotal-label').textContent = '$ ' + sub.toLocaleString('es-CO');
+            const isNov = tr.getAttribute('data-is-novedad') === '1';
+            const novTipo = tr.getAttribute('data-nov-tipo') || 'ADICION';
+            tr.querySelector('.item-subtotal-label').textContent = (isNov ? (novTipo === 'ADICION' ? '+ ' : '- ') : '') + '$ ' + sub.toLocaleString('es-CO');
             recalcularTotalesAjuste();
         }
 
         function eliminarFilaItem(btn) {
             const tbody = document.getElementById('itemsAjusteTableBody');
-            if (tbody.children.length > 1) {
-                btn.closest('tr').remove();
+            const tr = btn.closest('tr');
+            const isNov = tr.getAttribute('data-is-novedad') === '1';
+            const novCod = tr.getAttribute('data-nov-codigo');
+
+            if (tbody.children.length > 1 || isNov) {
+                tr.remove();
+                if (isNov && novCod) {
+                    window.novedadesNotaAplicadas = window.novedadesNotaAplicadas.filter(n => n.codigo !== novCod);
+                    actualizarResumenBadgesNovedadesNota();
+                    if (window.novedadesNotaAplicadas.length === 0) {
+                        const chk = document.getElementById('chkRegistraNovedadesNota');
+                        if (chk) chk.checked = false;
+                    }
+                }
                 recalcularTotalesAjuste();
             } else {
                 SwalCustom.fire({ icon: 'warning', title: 'Atención', text: 'Debe existir al menos un concepto en la nota de ajuste.' });
@@ -1246,6 +1646,8 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
 
             const resBruto = document.getElementById('resumenBrutoAjuste');
             const resDeltaDed = document.getElementById('resumenDeltaDeducciones');
+            const resNovRow = document.getElementById('resumenNovedadesRow');
+            const resNovVal = document.getElementById('resumenNovedadesAjuste');
             const resAjuste = document.getElementById('resumenValorAjuste');
             const resOrig = document.getElementById('resumenTotalOriginal');
             const resFinal = document.getElementById('resumenTotalAjustado');
@@ -1272,6 +1674,8 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 if (deltaBadge) deltaBadge.classList.add('hidden');
                 if (resBruto) resBruto.textContent = '$ 0';
                 if (resDeltaDed) resDeltaDed.textContent = '$ 0';
+                if (resNovRow) resNovRow.classList.add('hidden');
+                if (resNovVal) resNovVal.textContent = '$ 0';
                 if (resAjuste) resAjuste.textContent = '$ 0';
                 if (resOrig) resOrig.textContent = '$ 0';
                 if (resFinal) resFinal.textContent = '$ 0';
@@ -1318,13 +1722,14 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                     </div>
                 `;
             } else if (dedSalud > 0 || dedPension > 0 || dedArl > 0) {
+                const solBadge = (dedSolidaridad > 0) ? ` | F. Sol.: ${floatval(liqOrig.ded_solidaridad_pct || 0)}%` : '';
                 statusBadgeText = `
                     <div class="px-4 py-2 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[10px]">
                         <span class="font-bold flex items-center gap-1.5 text-teal-700 dark:text-teal-300">
                             <span class="w-2 h-2 rounded-full bg-teal-500"></span>
                             <span>Parafiscales Activos</span>
                         </span>
-                        <span class="font-mono font-extrabold text-[9px] text-teal-600 dark:text-teal-400">Seguridad Social Aplicada</span>
+                        <span class="font-mono font-extrabold text-[9px] text-teal-600 dark:text-teal-400">Seguridad Social Aplicada${solBadge}</span>
                     </div>
                 `;
             } else {
@@ -1351,11 +1756,14 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 `;
             }
 
-            if (dedSolidaridad > 0) {
+            const nuevoSolidaridad = (calc.nuevo_solidaridad !== undefined) ? calc.nuevo_solidaridad : dedSolidaridad;
+            if (dedSolidaridad > 0 || nuevoSolidaridad > 0) {
+                const solPct = floatval(liqOrig.ded_solidaridad_pct || 0);
+                const solPctText = solPct > 0 ? ` (${solPct}%)` : '';
                 rowsHtml += `
                     <div class="flex items-center justify-between gap-2">
-                        <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES FONDO SOLIDARIDAD</label>
-                        <span class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">$ ${dedSolidaridad.toLocaleString('es-CO')}</span>
+                        <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES FONDO SOLIDARIDAD${solPctText}</label>
+                        <span class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">$ ${nuevoSolidaridad.toLocaleString('es-CO')}</span>
                     </div>
                 `;
             }
@@ -1529,21 +1937,43 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             }
 
             // 4. Panel Derecho: Balance Financiero
+            const deltaEstudios = calc.delta_estudios !== undefined ? calc.delta_estudios : (calc.total_estudios_bruto || 0) * (esCredito ? 1 : -1);
+            const totalNovNeto = calc.total_novedades_neto || 0;
+            const esPositivo = ajusteNetoReal >= 0;
+
             if (badgeTipo) {
-                badgeTipo.textContent = esCredito ? 'CRÉDITO (+)' : 'DÉBITO (-)';
-                badgeTipo.className = `text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${esCredito ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-700'}`;
+                badgeTipo.textContent = esPositivo ? 'CRÉDITO (+)' : 'DÉBITO (-)';
+                badgeTipo.className = `text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${esPositivo ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-700'}`;
             }
             if (resBruto) {
-                resBruto.textContent = (esCredito ? '+ ' : '- ') + '$ ' + Math.abs(totalItemsBruto).toLocaleString('es-CO');
-                resBruto.className = `font-mono font-black ${esCredito ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+                if (deltaEstudios !== 0) {
+                    resBruto.textContent = (deltaEstudios > 0 ? '+ ' : '- ') + '$ ' + Math.abs(deltaEstudios).toLocaleString('es-CO');
+                    resBruto.className = `font-mono font-black ${deltaEstudios > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+                } else {
+                    resBruto.textContent = '$ 0';
+                    resBruto.className = 'font-mono font-bold text-slate-500 dark:text-slate-400';
+                }
             }
             if (resDeltaDed) {
-                const dedSign = deltaDeducciones > 0 ? '- ' : (deltaDeducciones < 0 ? '+ ' : '');
-                resDeltaDed.textContent = dedSign + '$ ' + Math.abs(deltaDeducciones).toLocaleString('es-CO');
-                resDeltaDed.className = `font-mono font-bold ${deltaDeducciones > 0 ? 'text-rose-600 dark:text-rose-400' : (deltaDeducciones < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300')}`;
+                if (deltaDeducciones !== 0) {
+                    const dedSign = deltaDeducciones > 0 ? '- ' : '+ ';
+                    resDeltaDed.textContent = dedSign + '$ ' + Math.abs(deltaDeducciones).toLocaleString('es-CO');
+                    resDeltaDed.className = `font-mono font-bold ${deltaDeducciones > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+                } else {
+                    resDeltaDed.textContent = '$ 0';
+                    resDeltaDed.className = 'font-mono font-bold text-slate-500 dark:text-slate-400';
+                }
+            }
+            if (resNovRow && resNovVal) {
+                if (totalNovNeto !== 0 || (window.novedadesNotaAplicadas && window.novedadesNotaAplicadas.length > 0)) {
+                    resNovRow.classList.remove('hidden');
+                    resNovVal.textContent = (totalNovNeto >= 0 ? '+ ' : '- ') + '$ ' + Math.abs(totalNovNeto).toLocaleString('es-CO');
+                    resNovVal.className = 'font-mono font-bold ' + (totalNovNeto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+                } else {
+                    resNovRow.classList.add('hidden');
+                }
             }
             if (resAjuste) {
-                const esPositivo = ajusteNetoReal >= 0;
                 resAjuste.textContent = (esPositivo ? '+ ' : '- ') + '$ ' + Math.abs(ajusteNetoReal).toLocaleString('es-CO');
                 resAjuste.className = `font-mono font-black text-sm ${esPositivo ? 'text-teal-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
             }
@@ -1589,16 +2019,45 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
         }
 
         function recalcularTotalesAjuste(rebuildHtml = true) {
-            let totalItemsSum = 0;
+            let totalEstudiosSum = 0;
+            let totalNovAdicion = 0;
+            let totalNovDeduccion = 0;
+
             document.querySelectorAll('#itemsAjusteTableBody tr').forEach(tr => {
                 const cant = parseFloat(tr.querySelector('.item-cantidad')?.value) || 0;
                 const val  = parseFloat(tr.querySelector('.item-valor')?.value) || 0;
-                totalItemsSum += (cant * val);
+                const sub  = cant * val;
+                const isNov = tr.getAttribute('data-is-novedad') === '1';
+                const novTipo = tr.getAttribute('data-nov-tipo') || 'ADICION';
+
+                if (isNov) {
+                    if (novTipo === 'DEDUCCION') {
+                        totalNovDeduccion += sub;
+                    } else {
+                        totalNovAdicion += sub;
+                    }
+                } else {
+                    totalEstudiosSum += sub;
+                }
             });
 
-            const tipo = document.getElementById('inputTipoNota').value;
+            const tipoSelect = document.getElementById('inputTipoNota');
+            let tipo = tipoSelect ? tipoSelect.value : 'CREDITO';
+            const totalNovNeto = totalNovAdicion - totalNovDeduccion;
+
+            // Sincronizar automáticamente el tipo de nota si solo hay novedades de adición o deducción (sin exámenes nuevos)
+            if (totalEstudiosSum === 0 && (totalNovAdicion > 0 || totalNovDeduccion > 0)) {
+                if (totalNovNeto < 0 && tipoSelect && tipoSelect.value !== 'DEBITO') {
+                    tipoSelect.value = 'DEBITO';
+                    tipo = 'DEBITO';
+                } else if (totalNovNeto > 0 && tipoSelect && tipoSelect.value !== 'CREDITO') {
+                    tipoSelect.value = 'CREDITO';
+                    tipo = 'CREDITO';
+                }
+            }
+
             const esCredito = (tipo === 'CREDITO');
-            const deltaBruto = esCredito ? totalItemsSum : -totalItemsSum;
+            const deltaEstudios = esCredito ? totalEstudiosSum : -totalEstudiosSum;
 
             // Datos contables de la liquidación original
             const liqOrig = liquidacionSeleccionadaActual || {};
@@ -1612,6 +2071,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             const dedSaludOrig     = floatval(liqOrig.ded_salud || 0);
             const dedPensionOrig   = floatval(liqOrig.ded_pension || 0);
             const dedArlOrig       = floatval(liqOrig.ded_arl || 0);
+            const dedSolidaridadOrig = floatval(liqOrig.ded_solidaridad || 0);
 
             // Porcentaje de retención a aplicar (manual si el usuario activó la corrección)
             let retencionPct = retencionPctOrig;
@@ -1619,10 +2079,13 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 retencionPct = floatval(window.retencionManualPct);
             }
 
-            // 1. Nueva Factura Bruta
+            // Delta Bruto Total: Producción de exámenes + Novedades de la entidad (las novedades afectan el valor general/total factura)
+            const deltaBruto = deltaEstudios + totalNovNeto;
+
+            // 1. Nueva Factura Bruta (modificada por producción médica y novedades)
             const nuevaFactura = Math.max(0, totalFacturaOrig + deltaBruto);
 
-            // 2. Recálculo de Retención en la Fuente
+            // 2. Recálculo de Retención en la Fuente sobre la nueva Factura Bruta
             let nuevaRetencion = retencionOrig;
             let deltaRetencion = 0;
             if (retencionPct > 0 || (window.edicionRetencionActiva && window.retencionManualPct !== null)) {
@@ -1634,31 +2097,39 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 nuevaRetencion = Math.max(0, rete383Orig + deltaRetencion);
             }
 
-            // 3. Recálculo de Parafiscales si estaban activos en la liquidación original
+            // 3. Recálculo de Parafiscales y Fondo Solidaridad si estaban activos en la liquidación original
             let deltaParafiscales = 0;
             let nuevoSalud = dedSaludOrig;
             let nuevoPension = dedPensionOrig;
             let nuevoArl = dedArlOrig;
-            if (dedIbcOrig > 0 && totalFacturaOrig > 0) {
+            let nuevoSolidaridad = dedSolidaridadOrig;
+            if (dedIbcOrig > 0 && totalFacturaOrig > 0 && deltaBruto !== 0) {
                 const factor = (nuevaFactura / totalFacturaOrig);
                 nuevoSalud = Math.round(dedSaludOrig * factor);
                 nuevoPension = Math.round(dedPensionOrig * factor);
                 nuevoArl = Math.round(dedArlOrig * factor);
-                const parafiscalesOrig = dedSaludOrig + dedPensionOrig + dedArlOrig;
-                const nuevosParafiscales = nuevoSalud + nuevoPension + nuevoArl;
+                nuevoSolidaridad = Math.round(dedSolidaridadOrig * factor);
+                const parafiscalesOrig = dedSaludOrig + dedPensionOrig + dedArlOrig + dedSolidaridadOrig;
+                const nuevosParafiscales = nuevoSalud + nuevoPension + nuevoArl + nuevoSolidaridad;
                 deltaParafiscales = nuevosParafiscales - parafiscalesOrig;
             }
 
-            // 4. Impacto en Deducciones
+            // 4. Impacto en Deducciones de Ley
             const deltaDeducciones = deltaRetencion + deltaParafiscales;
             const nuevasDeducciones = Math.max(0, totalDedOrig + deltaDeducciones);
 
-            // 5. Ajuste Neto Final al Médico
+            // 5. Ajuste Neto Final al Médico:
+            // deltaBruto (exámenes + novedades) menos el impacto de las deducciones de ley
             const ajusteNetoReal = deltaBruto - deltaDeducciones;
             const nuevoTotalPagar = Math.max(0, totalPagarOrig + ajusteNetoReal);
 
             window.calculoContableActual = {
-                total_items_bruto: totalItemsSum,
+                total_items_bruto: Math.abs(deltaBruto),
+                total_estudios_bruto: totalEstudiosSum,
+                delta_estudios: deltaEstudios,
+                total_novedades_adicion: totalNovAdicion,
+                total_novedades_deduccion: totalNovDeduccion,
+                total_novedades_neto: totalNovNeto,
                 delta_bruto: deltaBruto,
                 total_factura_original: totalFacturaOrig,
                 nueva_factura: nuevaFactura,
@@ -1670,7 +2141,9 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 nuevo_salud: nuevoSalud,
                 nuevo_pension: nuevoPension,
                 nuevo_arl: nuevoArl,
-                parafiscales_original: (dedSaludOrig + dedPensionOrig + dedArlOrig),
+                nuevo_solidaridad: nuevoSolidaridad,
+                solidaridad_original: dedSolidaridadOrig,
+                parafiscales_original: (dedSaludOrig + dedPensionOrig + dedArlOrig + dedSolidaridadOrig),
                 delta_parafiscales: deltaParafiscales,
                 delta_deducciones: deltaDeducciones,
                 deducciones_originales: totalDedOrig,
@@ -1691,8 +2164,12 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 const deltaBadge = document.getElementById('modalDeduccionesDeltaBadge');
                 const resBruto = document.getElementById('resumenBrutoAjuste');
                 const resDeltaDed = document.getElementById('resumenDeltaDeducciones');
+                const resNovRow = document.getElementById('resumenNovedadesRow');
+                const resNovVal = document.getElementById('resumenNovedadesAjuste');
                 const resAjuste = document.getElementById('resumenValorAjuste');
                 const resFinal = document.getElementById('resumenTotalAjustado');
+                const badgeTipo = document.getElementById('modalBadgeTipoAjuste');
+                const esPositivo = ajusteNetoReal >= 0;
 
                 if (reteDisplay) reteDisplay.textContent = '- $ ' + nuevaRetencion.toLocaleString('es-CO');
                 if (reteDisplay2) reteDisplay2.textContent = '- $ ' + nuevaRetencion.toLocaleString('es-CO');
@@ -1713,16 +2190,39 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                         deltaBadge.classList.add('hidden');
                     }
                 }
+                if (badgeTipo) {
+                    badgeTipo.textContent = esPositivo ? 'CRÉDITO (+)' : 'DÉBITO (-)';
+                    badgeTipo.className = `text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${esPositivo ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-700'}`;
+                }
                 if (resBruto) {
-                    resBruto.textContent = (esCredito ? '+ ' : '- ') + '$ ' + Math.abs(totalItemsSum).toLocaleString('es-CO');
+                    if (deltaEstudios !== 0) {
+                        resBruto.textContent = (deltaEstudios > 0 ? '+ ' : '- ') + '$ ' + Math.abs(deltaEstudios).toLocaleString('es-CO');
+                        resBruto.className = `font-mono font-black ${deltaEstudios > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+                    } else {
+                        resBruto.textContent = '$ 0';
+                        resBruto.className = 'font-mono font-bold text-slate-500 dark:text-slate-400';
+                    }
                 }
                 if (resDeltaDed) {
-                    const dedSign = deltaDeducciones > 0 ? '- ' : (deltaDeducciones < 0 ? '+ ' : '');
-                    resDeltaDed.textContent = dedSign + '$ ' + Math.abs(deltaDeducciones).toLocaleString('es-CO');
-                    resDeltaDed.className = `font-mono font-bold ${deltaDeducciones > 0 ? 'text-rose-600 dark:text-rose-400' : (deltaDeducciones < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300')}`;
+                    if (deltaDeducciones !== 0) {
+                        const dedSign = deltaDeducciones > 0 ? '- ' : '+ ';
+                        resDeltaDed.textContent = dedSign + '$ ' + Math.abs(deltaDeducciones).toLocaleString('es-CO');
+                        resDeltaDed.className = `font-mono font-bold ${deltaDeducciones > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`;
+                    } else {
+                        resDeltaDed.textContent = '$ 0';
+                        resDeltaDed.className = 'font-mono font-bold text-slate-500 dark:text-slate-400';
+                    }
+                }
+                if (resNovRow && resNovVal) {
+                    if (totalNovNeto !== 0 || (window.novedadesNotaAplicadas && window.novedadesNotaAplicadas.length > 0)) {
+                        resNovRow.classList.remove('hidden');
+                        resNovVal.textContent = (totalNovNeto >= 0 ? '+ ' : '- ') + '$ ' + Math.abs(totalNovNeto).toLocaleString('es-CO');
+                        resNovVal.className = 'font-mono font-bold ' + (totalNovNeto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+                    } else {
+                        resNovRow.classList.add('hidden');
+                    }
                 }
                 if (resAjuste) {
-                    const esPositivo = ajusteNetoReal >= 0;
                     resAjuste.textContent = (esPositivo ? '+ ' : '- ') + '$ ' + Math.abs(ajusteNetoReal).toLocaleString('es-CO');
                     resAjuste.className = `font-mono font-black text-sm ${esPositivo ? 'text-teal-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
                 }
@@ -1741,7 +2241,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 return;
             }
 
-            const tipo = document.getElementById('inputTipoNota').value;
+            const tipoInput = document.getElementById('inputTipoNota').value;
             const motivo = document.getElementById('inputMotivoAjuste').value.trim();
             const liqOrig = liquidacionSeleccionadaActual || {};
             const pctOrig = floatval(liqOrig.ded_retencion_pct || 0);
@@ -1773,6 +2273,9 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 const cant = parseFloat(tr.querySelector('.item-cantidad').value) || 0;
                 const val  = parseFloat(tr.querySelector('.item-valor').value) || 0;
                 const sub  = cant * val;
+                const isNov = tr.getAttribute('data-is-novedad') === '1';
+                const novTipo = tr.getAttribute('data-nov-tipo') || 'ADICION';
+                const novCod = tr.getAttribute('data-nov-codigo') || '';
                 totalItems += sub;
                 if (concepto || cups) {
                     items.push({
@@ -1782,7 +2285,10 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                         concepto: concepto || cups,
                         cantidad: cant,
                         valor_unitario: val,
-                        subtotal: sub
+                        subtotal: sub,
+                        is_novedad: isNov ? 1 : 0,
+                        nov_tipo: novTipo,
+                        nov_codigo: novCod
                     });
                 }
             });
@@ -1804,7 +2310,9 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
             }
 
             const calc = window.calculoContableActual || {};
-            const valorAjusteNeto = Math.abs(calc.ajuste_neto_real !== undefined ? calc.ajuste_neto_real : totalItems);
+            const ajusteNetoReal = (calc.ajuste_neto_real !== undefined) ? calc.ajuste_neto_real : (tipoInput === 'CREDITO' ? totalItems : -totalItems);
+            const valorAjusteNeto = Math.abs(ajusteNetoReal);
+            const tipoEfectivo = (ajusteNetoReal < 0) ? 'DEBITO' : 'CREDITO';
 
             let extraHtmlAviso = '';
             if (cambioRete) {
@@ -1820,6 +2328,19 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 `;
             }
 
+            let extraHtmlNovAviso = '';
+            if (window.novedadesNotaAplicadas && window.novedadesNotaAplicadas.length > 0) {
+                extraHtmlNovAviso = `
+                    <div class="flex justify-between text-xs text-amber-400">
+                        <span>Novedades Registradas:</span>
+                        <span class="font-bold">${window.novedadesNotaAplicadas.length} novedades (${(calc.total_novedades_neto >= 0 ? '+ ' : '- ')}$ ${Math.abs(calc.total_novedades_neto || 0).toLocaleString('es-CO')})</span>
+                    </div>
+                `;
+            }
+
+            const deltaEstudios = calc.delta_estudios !== undefined ? calc.delta_estudios : (calc.total_estudios_bruto || 0);
+            const deltaBruto = calc.delta_bruto !== undefined ? calc.delta_bruto : (deltaEstudios + (calc.total_novedades_neto || 0));
+
             const confirmModal = await SwalCustom.fire({
                 title: '¿Registrar Nota de Ajuste?',
                 icon: 'question',
@@ -1831,19 +2352,20 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                         </div>
                         <div class="flex justify-between text-xs">
                             <span class="text-slate-400">Tipo de Ajuste:</span>
-                            <span class="font-bold ${tipo === 'CREDITO' ? 'text-emerald-400' : 'text-rose-400'}">${tipo === 'CREDITO' ? 'CRÉDITO (A Favor)' : 'DÉBITO (Descuento)'}</span>
+                            <span class="font-bold ${tipoEfectivo === 'CREDITO' ? 'text-emerald-400' : 'text-rose-400'}">${tipoEfectivo === 'CREDITO' ? 'CRÉDITO (A Favor)' : 'DÉBITO (Descuento)'}</span>
                         </div>
                         <div class="flex justify-between text-xs">
                             <span class="text-slate-400">Subtotal Exámenes (Bruto):</span>
-                            <span class="font-mono text-slate-200">$ ${totalItems.toLocaleString('es-CO')}</span>
+                            <span class="font-mono text-slate-200">${(deltaEstudios > 0 ? '+ ' : (deltaEstudios < 0 ? '- ' : ''))}$ ${Math.abs(deltaEstudios).toLocaleString('es-CO')}</span>
                         </div>
+                        ${extraHtmlNovAviso}
                         <div class="flex justify-between text-xs">
                             <span class="text-slate-400">Impacto en Deducciones:</span>
                             <span class="font-mono text-rose-400">${(calc.delta_deducciones > 0 ? '- ' : (calc.delta_deducciones < 0 ? '+ ' : ''))}$ ${Math.abs(calc.delta_deducciones || 0).toLocaleString('es-CO')}</span>
                         </div>
                         <div class="flex justify-between text-xs pt-1 border-t border-slate-700">
                             <span class="text-slate-300 font-bold">Ajuste Neto a Pagar:</span>
-                            <strong class="font-mono text-emerald-400 font-black text-sm">${(calc.ajuste_neto_real >= 0 ? '+ ' : '- ')}$ ${valorAjusteNeto.toLocaleString('es-CO')}</strong>
+                            <strong class="font-mono ${tipoEfectivo === 'CREDITO' ? 'text-emerald-400' : 'text-rose-400'} font-black text-sm">${(ajusteNetoReal >= 0 ? '+ ' : '- ')}$ ${valorAjusteNeto.toLocaleString('es-CO')}</strong>
                         </div>
                     </div>
                     ${extraHtmlAviso}
@@ -1864,11 +2386,13 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 const payload = {
                     action: 'guardar_nota',
                     liquidacion_id: liqId,
-                    tipo_nota: tipo,
+                    tipo_nota: tipoEfectivo,
                     motivo_ajuste: motivo,
-                    valor_ajuste: valorAjusteNeto,
-                    subtotal_bruto: totalItems,
+                    valor_ajuste: (tipoEfectivo === 'DEBITO') ? -valorAjusteNeto : valorAjusteNeto,
+                    subtotal_bruto: Math.abs(deltaBruto),
                     deducciones_ajuste: Math.abs(calc.delta_deducciones || 0),
+                    novedades_json: window.novedadesNotaAplicadas && window.novedadesNotaAplicadas.length > 0 ? window.novedadesNotaAplicadas : null,
+                    total_novedades: (calc.total_novedades_neto || 0),
                     modifico_retencion: cambioRete ? 1 : 0,
                     retencion_pct_original: pctOrig,
                     retencion_pct_nuevo: pctNuevo,
@@ -1936,8 +2460,8 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 }
 
                 const n = result.data;
-                const esCredito = (n.tipo_nota === 'CREDITO' || floatval(n.valor_ajuste) > 0);
                 const valAjuste = floatval(n.valor_ajuste || 0);
+                const esCredito = (n.tipo_nota === 'CREDITO' && valAjuste >= 0) || (valAjuste > 0 && n.tipo_nota !== 'DEBITO');
 
                 document.getElementById('detalleNotaTitulo').textContent = `Nota de Ajuste ${n.numero_nota || 'NA-' + n.id}`;
                 document.getElementById('detalleNotaSubtitulo').textContent = `${n.medico_nombre} (CC: ${n.medico_cedula}) • Periodo: ${n.periodo_desde} al ${n.periodo_hasta}`;
@@ -2163,9 +2687,11 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                     `;
                 }
                 if (dedSolidaridad > 0) {
+                    const solPct = parseFloat(liqOrig.ded_solidaridad_pct || 0);
+                    const solPctText = solPct > 0 ? ` (${solPct}%)` : '';
                     deduccionesRowsHtml += `
                         <div class="flex items-center justify-between gap-2">
-                            <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES FONDO SOLIDARIDAD</label>
+                            <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-300">MENOS APORTES FONDO SOLIDARIDAD${solPctText}</label>
                             <span class="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">$ ${dedSolidaridad.toLocaleString('es-CO')}</span>
                         </div>
                     `;
@@ -2304,6 +2830,33 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                             </table>
                         </div>
 
+                        ${(() => {
+                            let novsArr = [];
+                            try {
+                                novsArr = typeof n.novedades_json === 'string' ? JSON.parse(n.novedades_json) : (n.novedades_json || []);
+                            } catch(e) {}
+                            if (!Array.isArray(novsArr) || novsArr.length === 0) return '';
+                            let novBadges = novsArr.map(nov => {
+                                const esAd = (nov.tipo === 'ADICION');
+                                return `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${esAd ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300'}">
+                                    <span>${esAd ? '+ ADICIÓN' : '- DEDUCCIÓN'}</span>
+                                    <span class="font-mono text-[10px]">${nov.codigo}</span>
+                                    <span>${htmlspecialchars(nov.nombre)}:</span>
+                                    <strong class="font-mono">$ ${floatval(nov.valor || 0).toLocaleString('es-CO')}</strong>
+                                    ${nov.observacion ? `<span class="text-[10px] opacity-75">(${htmlspecialchars(nov.observacion)})</span>` : ''}
+                                </span>`;
+                            }).join('');
+                            return `
+                                <div class="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 space-y-2">
+                                    <span class="text-[10px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                                        <span class="material-symbols-outlined text-sm">campaign</span>
+                                        Novedades de la Entidad Registradas en esta Nota
+                                    </span>
+                                    <div class="flex flex-wrap gap-2">${novBadges}</div>
+                                </div>
+                            `;
+                        })()}
+
                         ${calculoContable ? `
                         <!-- Desglose de Deducciones del Ajuste -->
                         <div class="p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-teal-200/60 dark:border-slate-700/80 space-y-3">
@@ -2316,11 +2869,11 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                                     Retención Base: ${calculoContable.retencion_pct || 0}%
                                 </span>
                             </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                            <div class="grid grid-cols-2 ${calculoContable.total_novedades_neto ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-2 text-xs">
                                 <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/70">
                                     <span class="text-[10px] font-bold text-slate-400 uppercase block">Subtotal Exámenes</span>
                                     <span class="font-mono font-black text-xs text-slate-800 dark:text-slate-100 mt-1 block">
-                                        $ ${floatval(calculoContable.total_items_bruto || 0).toLocaleString('es-CO')}
+                                        $ ${floatval(calculoContable.total_estudios_bruto !== undefined ? calculoContable.total_estudios_bruto : calculoContable.total_items_bruto || 0).toLocaleString('es-CO')}
                                     </span>
                                 </div>
                                 <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/70">
@@ -2335,9 +2888,17 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                                         ${calculoContable.delta_parafiscales > 0 ? '- ' : (calculoContable.delta_parafiscales < 0 ? '+ ' : '')}$ ${Math.abs(calculoContable.delta_parafiscales || 0).toLocaleString('es-CO')}
                                     </span>
                                 </div>
+                                ${calculoContable.total_novedades_neto ? `
+                                <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80">
+                                    <span class="text-[10px] font-bold text-amber-700 dark:text-amber-300 uppercase block">Novedades Entidad</span>
+                                    <span class="font-mono font-black text-xs ${calculoContable.total_novedades_neto >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'} mt-1 block">
+                                        ${(calculoContable.total_novedades_neto >= 0 ? '+ ' : '- ')}$ ${Math.abs(calculoContable.total_novedades_neto).toLocaleString('es-CO')}
+                                    </span>
+                                </div>
+                                ` : ''}
                                 <div class="p-2.5 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80">
                                     <span class="text-[10px] font-black text-teal-700 dark:text-teal-300 uppercase block">(=) Ajuste Neto Real</span>
-                                    <span class="font-mono font-black text-xs text-teal-700 dark:text-teal-300 mt-1 block">
+                                    <span class="font-mono font-black text-xs ${esCredito ? 'text-teal-700 dark:text-teal-300' : 'text-rose-600 dark:text-rose-400'} mt-1 block">
                                         ${esCredito ? '+ ' : '- '}$ ${Math.abs(valAjuste).toLocaleString('es-CO')}
                                     </span>
                                 </div>
