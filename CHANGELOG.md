@@ -5,21 +5,60 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.6] - 2026-09-23
+
+### Novedades Financieras y Deducciones sobre Total Factura
+- **Afectación de Novedades sobre Base de Facturación**: Las notas de ajuste y novedades ahora impactan directamente el **Total Factura / Valor General** de la liquidación en lugar del neto posterior, permitiendo que todas las deducciones de ley (aportes a seguridad social en salud, pensión y retenciones en la fuente) se recalculen y apliquen automáticamente sobre la base consolidada ajustada.
+- **Sincronización en Todo el Ciclo de Liquidación**: Homologación del cálculo en `notas_ajuste.php`, `aprobacion_liquidaciones.php`, `includes/liquidaciones_helper.php` y generación de comprobantes oficiales en PDF (`includes/pdf_liquidaciones.php`).
+- **Módulo Maestro de Novedades (`maestro_novedades.php`)**: Creación y despliegue del módulo para la administración y parametrización centralizada de tipos de novedades contractuales y descuentos institucionales.
+
+### Notificaciones y Respaldo Institucional
+- **Copia Automática a Mary Luz Ríos**: Integración en `includes/smtp_mailer.php` para que todas las liquidaciones, comprobantes de pago y avisos remitidos por correo electrónico a los médicos especialistas se envíen con copia de auditoría obligatoria a Mary Luz Ríos, garantizando trazabilidad administrativa inmediata.
+
+### Protección y Sanitización de Datos Servinte
+- **Filtro Preventivo Anti-Errores de Digitación**: Regla automatizada en el motor de cruce bidireccional (`examenes_medicos.php`, `gestion_medicos_procedimientos.php`, `includes/liquidaciones_helper.php`) que detecta cuando el personal de admisiones en Servinte digita por error el código CUPS en la casilla de cantidad.
+- **Normalización Automática a Unidad Real**: Se neutralizan cantidades absurdas (como 881.401 unidades en un examen individual), asignando automáticamente cantidad 1 y aplicando la tarifa real unitaria pactada ($21.400 en vez de cifras anómalas de miles de millones de pesos).
+
+### Transparencia y Experiencia de Usuario (UI/UX)
+- **Indicador Dinámico de Monto Filtrado**: Cuando el usuario realiza una búsqueda o filtra la tabla por un concepto médico específico (ej. RX Simples), la tarjeta superior de *Monto a Pagar* aclara explícitamente el subtotal visible y el consolidado global (`Filtrado (X reg.) • Total: $...`).
+- **Pastilla Interactiva de Filtro Activo**: Visualización de una etiqueta interactiva `[Concepto: CODIGO x]` junto al contador de registros mostrados, permitiendo identificar de inmediato cualquier filtro aplicado y retirarlo con un solo clic.
+
+### Archivos Modificados e Incorporados
+- `config/version.php`
+- `README.md`
+- `CHANGELOG.md`
+- `aprobacion_liquidaciones.php`
+- `examenes_medicos.php`
+- `gestion_medicos_procedimientos.php`
+- `includes/config_helper.php`
+- `includes/email_logger.php`
+- `includes/liquidaciones_helper.php`
+- `includes/navbar.php`
+- `includes/pdf_liquidaciones.php`
+- `includes/permisos_helper.php`
+- `includes/smtp_mailer.php`
+- `maestro_novedades.php` [NUEVO]
+- `medicos.php`
+- `notas_ajuste.php`
+- `validar_email.php`
+
+---
+
 ## [1.1.5] - 2026-09-21
 
-### 🎨 Diseño y Experiencia de Usuario (UI/UX)
+### Diseño y Experiencia de Usuario (UI/UX)
 - **Homologación Visual de Detalle de Liquidación por Sedes (`examenes_medicos.php`)**:
   - **Identidad Visual Corporativa Unificada**: Se homologó el diseño del modal de pre-liquidación en `examenes_medicos.php` para igualar con total precisión la interfaz moderna y refinada de `aprobacion_liquidaciones.php`.
   - **Barra de Encabezado Superior Sólida**: Se implementó la barra superior institucional en azul marino oscuro (`bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest text-center uppercase py-2.5 px-4 font-outfit`) con el título `DETALLE DE LIQUIDACIÓN: ESTUDIOS REALIZADOS`.
   - **Tarjetas de Sede Homologadas**:
     - Encabezado con icono de edificio corporativo (`fa-building text-tertiary`), nombre en mayúsculas y botón interactivo `Ver informe ->`.
-    - Insignia compacta integrada en la cabecera cuando existen registros no cruzados (`⚠️ X NO CRUZADO(S) ($...)`), eliminando franjas amarillas voluminosas dentro del cuerpo de la tarjeta.
+    - Insignia compacta integrada en la cabecera cuando existen registros no cruzados (`[!] X NO CRUZADO(S) ($...)`), eliminando franjas amarillas voluminosas dentro del cuerpo de la tarjeta.
     - Columnas estándar de tabla: `CENTRO DE COSTO`, `CANT`, `VALOR`.
     - Fila inferior formal de `TOTAL` con la sumatoria de cantidades y montos monetarios en tipografía monoespaciada de alto contraste.
   - **Reubicación de Alerta Lateral**: El banner de advertencia global de registros no cruzados (`ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS`) se reubicó en la columna lateral derecha, ubicándose armónicamente sobre `ESTUDIOS POR ESTRUCTURA ADMINISTRATIVA`.
   - **Encabezado de Tabla de Producción por Médico**: Barra superior sólida azul marino con badge estilizado `Liquidación Global (X Especialistas)` con estructura HTML balanceada.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php`
 - `examenes_medicos.php`
 - `README.md`
@@ -29,7 +68,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.1.4] - 2026-09-21
 
-### 🎨 Diseño y Experiencia de Usuario (UI/UX)
+### Diseño y Experiencia de Usuario (UI/UX)
 - **Armonización Cromática: Tono Amarillo Mate y Opaco en Modo Claro (`examenes_medicos.php`, `aprobacion_liquidaciones.php`, `gestion_medicos_procedimientos.php`)**:
   - **Reducción de Saturación y Fatiga Visual**: Se reemplazaron los tonos amarillos fluorescentes y de alta saturación (`border-2 border-amber-300`, `border-amber-400`, `bg-amber-200`, `text-amber-600`) que generaban estridencia visual en modo claro.
   - **Paleta Mate y Confortable**: Se implementó una paleta equilibrada de tonos lino, arena cálida y bronce/ocre mate (`border-[#dfd5c0]`, `bg-[#fbf9f4]`, gradiente cálido `from-[#fbf8f1] to-[#f7f3e8]`, insignias `bg-[#ece2cb] text-[#4a3713]` y cifras en ocre profundo `text-[#8c5717]`).
@@ -42,7 +81,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
     - Las filas de bonificación por productividad en tomografías lucen un fondo lino mate que armoniza con la tabla administrativa.
   - **Modo Oscuro Preservado**: Se mantuvo intacta la armonía de alto contraste en modo oscuro (`dark:bg-[#20170a]`, `dark:border-amber-500/60`, `dark:text-amber-100`).
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php`
 - `examenes_medicos.php`
 - `aprobacion_liquidaciones.php`
@@ -54,17 +93,17 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.1.3] - 2026-09-21
 
-### 🚀 Novedades y Transparencia Financiera
+### Novedades y Transparencia Financiera
 - **Visualización y Desglose del Concepto de Bonificación por Tomografías (`aprobacion_liquidaciones.php`)**:
   - **Identificación y Aislamiento de Concepto**: Ahora el bono de tomografías contrastadas (regla de 50 tomografías × $150.000 COP, código `BONI_TOHO`) se desagrega y presenta como un concepto institucional independiente (`BONIFICACIÓN TOMOGRAFÍAS`), evitando que quede oculto o agrupado dentro del concepto de `RXSI`.
-  - **Banner Corporativo de Incentivo**: Al abrir el detalle de una liquidación (`Ver Detalle`), si el profesional cuenta con bonos causados, se despliega un banner destacado en gradiente dorado/ámbar con icono de mérito (`military_tech`), especificando la regla aplicada, la sede donde se reconoció y el valor monetario adicional.
+  - **Banner Corporativo de Incentivo**: Al abrir el detalle de una liquidación (`Ver Detalle`), si el profesional cuenta con bonos causados, se despliega un banner destacado en gradiente dorado/ámbar con icono de mérito, especificando la regla aplicada, la sede donde se reconoció y el valor monetario adicional.
   - **Fila Destacada por Sede**: En la tabla de centros de costo de cada sede, la bonificación se resalta con distintivo ámbar, indicando la cantidad exacta de bonos alcanzados (`1 bono(s)`) y el monto (`+$150.000 COP`).
   - **Auditoría en Informe Detallado de Sede**: En la vista drill-down por sede (`Ver informe`), se incluye la bonificación tanto en el resumen de conceptos como en la tabla cronológica de registros con etiqueta `INCENTIVO POR PRODUCTIVIDAD` e insignia `Bonificación`.
   - **Exportación en Excel y PDF**: Se actualizó la exportación completa a Excel y la generación de PDF oficial para que el concepto de incentivo se describa explícitamente como `BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)`.
   - **Regeneración Dinámica y Retrocompatibilidad**: En `includes/liquidaciones_helper.php`, se adaptó `generarResumenSedesJSON()` y `obtenerLiquidacionPorIdBD()` para recalcular y actualizar en caliente el resumen de sedes en liquidaciones que contengan el bono.
   - **Actualización del Manual de Usuario**: Se incorporó en `manual_usuario.php` la explicación operativa sobre la visualización e interpretación del bono de tomografías en las liquidaciones.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php`
 - `aprobacion_liquidaciones.php`
 - `includes/liquidaciones_helper.php`
@@ -78,12 +117,12 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.1.2] - 2026-09-21
 
-### 🔧 Mejoras de Navegación
+### Mejoras de Navegación
 - **Apertura en Nueva Pestaña (`target="_blank"`)**:
   - Se configuraron todos los accesos al **Manual de Usuario** (Dashboard, Drawer de Módulos, Menú de Usuario y Footer) con `target="_blank"` y `rel="noopener noreferrer"`.
   - Ahora el manual se abre en una pestaña independiente sin interrumpir la sesión o el flujo de trabajo activo en el sistema.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php`
 - `dashboard.php`
 - `includes/navbar.php`
@@ -95,7 +134,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.1.1] - 2026-09-21
 
-### 🔧 Mejoras y Refinamiento Visual
+### Mejoras y Refinamiento Visual
 - **Limpieza de Barra de Navegación**:
   - Retiro del botón del manual de la barra superior para preservar la estética limpia y minimalista del header.
 - **Restauración del Hero Banner de Bienvenida**:
@@ -105,7 +144,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
   - Acceso sutil como botón secundario en el encabezado de la sección de *Acciones Rápidas de Control*.
   - Mantenimiento del acceso en el menú desplegable del avatar de usuario y en el pie de página.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php`
 - `includes/navbar.php`
 - `dashboard.php`
@@ -116,7 +155,7 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.1.0] - 2026-09-21
 
-### 🚀 Novedades
+### Novedades
 - **Manual de Usuario Corporativo Interactivo (`manual_usuario.php`)**:
   - Plataforma integral de documentación institucional y guía operativa para la IPS Hernán Ocazionez y Cía S.A.S.
   - Buscador en tiempo real para encontrar secciones y términos clave al instante.
@@ -128,13 +167,13 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
   - Tarjeta de acceso interactiva dentro del banner de bienvenida principal (`dashboard.php`).
   - Enlace directo en el menú desplegable de usuario y en el pie de página (`includes/footer.php`).
 
-### 🔧 Mejoras
+### Mejoras
 - **Centralización del Versionado (`config/version.php`)**:
   - Creación de constantes institucionales `LIHO_VERSION`, `LIHO_VERSION_DATE` y `LIHO_VERSION_NAME` vinculadas a todas las vistas, footer, navbar y changelog.
 - **Normalización de Versión en Footer**:
   - Reemplazo de versión estática por la constante centralizada `LIHO_VERSION`.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `config/version.php` [NUEVO]
 - `manual_usuario.php` [NUEVO]
 - `includes/navbar.php`
@@ -147,11 +186,11 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ## [1.0.0] - 2026-09-21
 
-### 🚀 Versión Base Inicial y Consolidación del Sistema
+### Versión Base Inicial y Consolidación del Sistema
 
 Esta versión establece la línea base formal del sistema **LIHO** bajo control de versiones Git, integrando los módulos diagnósticos, administrativos, financieros y de conciliación clínica.
 
-#### 🔄 Cruce Bidireccional de Exámenes y Liquidación
+#### Cruce Bidireccional de Exámenes y Liquidación
 - **Cruce Automático Proteo vs Servinte**: Algoritmo de conciliación por pares Fuente-Ingreso con detección de discrepancias y estados de cruce (`CRUZADOS_OK`, `SOLO_PROTEO`, `SOLO_SERVINTE`).
 - **Cálculo de Tarifas y Modalidades**:
   - Detección de tipo de paciente: Entidad (`E`) vs Particular (`P`).
@@ -160,32 +199,32 @@ Esta versión establece la línea base formal del sistema **LIHO** bajo control 
   - Soporte de base de cálculo (`VALOR_LIQUIDACION` vs `VALOR_EXAMEN`).
   - Flag de `pagar_por_cantidad` para multiplicar o fijar el valor unitario.
 
-#### 📊 Tarifarios y Vigencias Temporales
+#### Tarifarios y Vigencias Temporales
 - Catálogo maestro de tarifas por código CUPS y entidad de salud.
 - Sistema de **Vigencias Temporales** con fechas de inicio (`vigencia_desde`) y fin (`vigencia_hasta`), permitiendo resolución histórica exacta de la tarifa que aplicaba en la fecha en que se realizó el examen médico.
 - Módulo de Tarifarios Especiales por médico y por examen.
 - Bloqueos de tarifas para restringir procedimientos no autorizados.
 
-#### 💰 Gestión Financiera, Aprobaciones y Retenciones
+#### Gestión Financiera, Aprobaciones y Retenciones
 - Pantalla de aprobación de liquidaciones con estados de flujo de trabajo.
 - Módulo de Notas de Ajuste débito y crédito con trazabilidad de usuario y motivo.
 - Emisión de Certificados Tributarios oficiales con retención en la fuente en PDF (FPDF).
 
-#### 🛡️ Seguridad, Auditoría y Entornos
+#### Seguridad, Auditoría y Entornos
 - Cifrado AES-256 en cadenas de conexión a bases de datos (`security_crypto.php`).
 - Autenticación con tokens de acceso vía correo electrónico (Gmail SMTP).
 - Asignación granular de roles (`ADMINISTRADOR`, `FINANCIERO`, `MÉDICO`) y permisos por vista.
 - Módulo de configuración de entorno: bloqueo de correos a médicos en desarrollo con redirección controlada a cuenta de pruebas.
 - Trazabilidad con `audit_logger.php` y registro de accesos.
 
-#### 🐛 Correcciones y Optimizaciones Recientes
+#### Correcciones y Optimizaciones
 - **examenes_medicos.php**: Corrección de variable no inicializada `$valorUndServinte` en la línea 1569 que provocaba advertencias PHP y rompía la respuesta JSON en el navegador.
 - **Optimización de Índices en SQL Server**:
   - Depuración y creación del índice `IX_tarifario_estado1` (`[estado], [entidad_id]`) con columnas calculadas para acelerar la carga de tarifas en milisegundos.
   - Implementación del índice `IX_tarifario_version_id1` para búsquedas históricas por versión.
   - Eliminación de índices redundantes que sobrecargaban las operaciones de escritura.
 
-#### 📂 Archivos Principales Incorporados
+#### Archivos Principales Incorporados
 - `examenes_medicos.php` — Conciliación bidireccional y liquidación médica.
 - `tarifario.php`, `historial_tarifario.php`, `tarifario_especial.php`, `tarifario_bloqueos.php` — Gestión tarifaria.
 - `aprobacion_liquidaciones.php`, `notas_ajuste.php`, `certificados_tributarios.php` — Módulos financieros.
@@ -196,26 +235,26 @@ Esta versión establece la línea base formal del sistema **LIHO** bajo control 
 
 ---
 
-## 📝 Guía para Nuevas Versiones
+## Guía para Nuevas Versiones
 
 Cada vez que se realicen cambios significativos, se añadirá una nueva sección superior respetando esta plantilla:
 
 ```markdown
 ## [X.Y.Z] - AAAA-MM-DD
 
-### 🚀 Novedades
+### Novedades
 - Descripción de nuevas funcionalidades o pantallas agregadas.
 
-### 🔧 Mejoras
+### Mejoras
 - Optimizaciones de rendimiento, mejoras de interfaz o refactorizaciones.
 
-### 🐛 Correcciones
+### Correcciones
 - Solución de errores reportados o comportamientos inesperados.
 
-### 🔒 Seguridad y Configuración
+### Seguridad y Configuración
 - Cambios en políticas de acceso, credenciales o variables de entorno.
 
-### 📂 Archivos Modificados
+### Archivos Modificados
 - `archivo1.php`
 - `archivo2.php`
 ```

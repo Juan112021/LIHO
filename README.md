@@ -11,7 +11,7 @@
 
 ---
 
-## 📋 Descripción General
+## Descripción General
 
 **LIHO** es la plataforma integral de liquidación de honorarios médicos, facturación diagnóstica y conciliación de exámenes desarrollada para la IPS **Hernán Ocazionez y Cía S.A.S.** 
 
@@ -21,68 +21,71 @@ Cuenta con un **Manual de Usuario Corporativo Interactivo** accesible en vivo de
 
 ---
 
-## 🚀 Módulos Principales
+## Módulos Principales
 
-### 1. 🔄 Cruce Bidireccional de Exámenes (`examenes_medicos.php`)
+### 1. Cruce Bidireccional de Exámenes (`examenes_medicos.php`)
 - Conciliación automática por **Fuente** e **Ingreso** entre PROTEO y Servinte.
 - Clasificación de estados: *Cruzados OK*, *Solo en Proteo*, *Solo en Servinte*, *Discrepancias*.
 - Detección inteligente de tipo de paciente (**Entidad 'E'** o **Particular 'P'**).
 - Reglas avanzadas de liquidación: Bonificación de Tomografías Contrastadas (Regla 50x$150.000 COP), modalidad de Degluciones (45%), Tarifas Especiales (30%) y Pago Dinámico.
 - Exportación instantánea a Excel y resúmenes ejecutivos en tiempo real.
+- Detección y corrección automática de anomalías en cantidades reportadas por admisiones hospitalarias.
+- Resúmenes dinámicos con desglose y trazabilidad de filtros activos por concepto.
 
-### 2. 📊 Gestión de Tarifarios y Vigencias (`tarifario.php`, `historial_tarifario.php`)
+### 2. Gestión de Tarifarios y Vigencias (`tarifario.php`, `historial_tarifario.php`)
 - Catálogo maestro de códigos CUPS, descripciones, unidades y valores.
 - **Sistema de Vigencias Temporales**: soporte para fechas de inicio (`vigencia_desde`) y fin (`vigencia_hasta`), permitiendo aplicar retroactivamente la tarifa exacta según la fecha en que se realizó el examen médico.
 - Gestión de versiones de tarifario con importación masiva por Excel / CSV.
 
-### 3. 🛡️ Tarifarios Especiales y Bloqueos (`tarifario_especial.php`, `tarifario_bloqueos.php`)
+### 3. Tarifarios Especiales y Bloqueos (`tarifario_especial.php`, `tarifario_bloqueos.php`)
 - Asignación de tarifas personalizadas por médico o por examen específico.
 - Bloqueo de cobros o tarifas restringidas para evitar pagos no autorizados.
 
-### 4. 👨‍⚕️ Gestión de Médicos y Procedimientos (`medicos.php`, `gestion_medicos_procedimientos.php`)
+### 4. Gestión de Médicos y Procedimientos (`medicos.php`, `gestion_medicos_procedimientos.php`)
 - Directorio de médicos especialistas con control de estado (activo/inactivo), entidad asignada, modalidades de pago y datos tributarios.
 - Asignación individual y colectiva de procedimientos y tipos de examen autorizados.
 
-### 5. 💰 Aprobación de Liquidaciones y Ajustes (`aprobacion_liquidaciones.php`, `notas_ajuste.php`)
+### 5. Aprobación de Liquidaciones, Ajustes y Novedades (`aprobacion_liquidaciones.php`, `notas_ajuste.php`, `maestro_novedades.php`)
 - Flujo de revisión, aprobación y emisión de preliquidaciones para el equipo financiero y administrativo.
+- **Gestión Integral de Novedades**: Registro de adiciones y descuentos que afectan el Total Factura / Valor General, aplicando proporcionalmente las deducciones de ley sobre la base consolidada.
 - **Transparencia en Bonificaciones**: Desglose explícito e individualizado del concepto de **Bonificación por Tomografías Contrastadas** (`BONIFICACIÓN TOMOGRAFÍAS`, 50 CT × $150.000 COP) con banner destacado de incentivo, badges institucionales y auditoría por sede.
 - Registro de **Notas de Ajuste** (débito/crédito) con auditoría completa de motivos, conciliación de saldos y doble huella criptográfica SHA-256.
 - Generación de reportes de liquidación en formato PDF y exportación completa a Excel.
 
-### 6. 📑 Certificados Tributarios (`certificados_tributarios.php`)
+### 6. Certificados Tributarios (`certificados_tributarios.php`)
 - Emisión formal de certificados de retención en la fuente para médicos especialistas.
 - Descarga directa en formato PDF oficial de Hernán Ocazionez y Cía S.A.S.
 
-### 7. ⚙️ Maestros de Configuración (`maestro_entidades.php`, `maestro_porcentajes.php`, `maestro_parafiscales.php`)
+### 7. Maestros de Configuración (`maestro_entidades.php`, `maestro_porcentajes.php`, `maestro_parafiscales.php`)
 - Multi-entidad (Hernán Ocazionez, IMADINSA SAS y otras IPS externas aliadas).
 - Configuración de porcentajes de pago por modalidad (porcentual o valor fijo).
 - Parámetros de aportes parafiscales (IBC 40%, Salud 12.5%, Pensión 16%, ARL).
 
-### 8. 🔐 Seguridad, Roles y Auditoría (`usuarios.php`, `gestion_roles.php`, `logs.php`)
+### 8. Seguridad, Roles y Auditoría (`usuarios.php`, `gestion_roles.php`, `logs.php`)
 - Control de acceso por roles: **Administrador**, **Financiero**, **Médico**.
-- Doble factor de autenticación y envío de tokens temporales de acceso vía SMTP (Gmail).
+- Doble factor de autenticación y envío de tokens temporales de acceso vía SMTP con copia de respaldo institucional (Mary Luz Ríos).
 - Registro estricto de auditoría de acciones (`audit_logger.php`) y logs de acceso (`logs_acceso.php`).
 - Módulo de control de entorno: bloqueo de correos a médicos en modo desarrollo.
 
-### 9. ⏰ Alertas Automáticas (`cron_alerta_medicos.php`, `alerta_medicos.php`)
+### 9. Alertas Automáticas (`cron_alerta_medicos.php`, `alerta_medicos.php`)
 - Proceso automatizado programable para notificación de vencimiento de documentos y vigencias médicas.
 
 ---
 
-## 🛠️ Arquitectura y Tecnologías
+## Arquitectura y Tecnologías
 
 | Componente | Tecnología |
 | :--- | :--- |
 | **Backend** | PHP 8.1+ (Programación procedural estructurada y helpers modulares) |
 | **Bases de Datos** | Microsoft SQL Server (vía extensión `sqlsrv` / `pdo_sqlsrv`), Oracle (Servinte) |
-| **Frontend** | HTML5 Semántico, JavaScript Vanilla / Fetch API, Tailwind CSS, Google Fonts (Montserrat), Material Symbols |
+| **Frontend** | HTML5 Semántico, JavaScript Vanilla / Fetch API, Tailwind CSS, Google Fonts (Outfit / Montserrat) |
 | **Generación de PDF**| FPDF con tipografías corporativas personalizadas |
 | **Servidor Web** | Apache (Entorno XAMPP en Windows) |
 | **Mailing** | PHPMailer / Conexión SMTP TLS |
 
 ---
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```text
 LIHO/
@@ -109,14 +112,14 @@ LIHO/
 
 ---
 
-## 📦 Historial de Versiones y Cambios
+## Historial de Versiones y Cambios
 
 Todas las versiones y cambios significativos se documentan de forma ordenada en el archivo:
-👉 **[CHANGELOG.md](CHANGELOG.md)**
+- **[CHANGELOG.md](CHANGELOG.md)**
 
 ---
 
-## ⚙️ Instalación y Requisitos
+## Instalación y Requisitos
 
 1. **Requisitos del Servidor**:
    - XAMPP con PHP 8.1 o superior en Windows.
