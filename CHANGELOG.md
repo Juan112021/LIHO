@@ -9,126 +9,97 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ### Novedades Financieras y Deducciones sobre Total Factura
 - **Afectación de Novedades sobre Base de Facturación**: Las notas de ajuste y novedades ahora impactan directamente el **Total Factura / Valor General** de la liquidación en lugar del neto posterior, permitiendo que todas las deducciones de ley (aportes a seguridad social en salud, pensión y retenciones en la fuente) se recalculen y apliquen automáticamente sobre la base consolidada ajustada.
-- **Sincronización en Todo el Ciclo de Liquidación**: Homologación del cálculo en `notas_ajuste.php`, `aprobacion_liquidaciones.php`, `includes/liquidaciones_helper.php` y generación de comprobantes oficiales en PDF (`includes/pdf_liquidaciones.php`).
-- **Módulo Maestro de Novedades (`maestro_novedades.php`)**: Creación y despliegue del módulo para la administración y parametrización centralizada de tipos de novedades contractuales y descuentos institucionales.
+- **Sincronización en Todo el Ciclo de Liquidación**: Homologación del cálculo en el registro de ajustes, en la pantalla de aprobación de liquidaciones, en el motor de liquidación y en la generación de comprobantes oficiales en PDF.
+- **Módulo Maestro de Novedades**: Incorporación del panel administrativo para la gestión y parametrización centralizada de tipos de novedades contractuales y descuentos institucionales.
 
 ### Notificaciones y Respaldo Institucional
-- **Copia Automática a Mary Luz Ríos**: Integración en `includes/smtp_mailer.php` para que todas las liquidaciones, comprobantes de pago y avisos remitidos por correo electrónico a los médicos especialistas se envíen con copia de auditoría obligatoria a Mary Luz Ríos, garantizando trazabilidad administrativa inmediata.
+- **Copia Automática a Mary Luz Ríos**: Integración en el servicio de correo para que todas las liquidaciones, comprobantes de pago y avisos remitidos por correo electrónico a los médicos especialistas se envíen con copia de auditoría obligatoria a Mary Luz Ríos, garantizando trazabilidad administrativa inmediata.
 
-### Protección y Sanitización de Datos Servinte
-- **Filtro Preventivo Anti-Errores de Digitación**: Regla automatizada en el motor de cruce bidireccional (`examenes_medicos.php`, `gestion_medicos_procedimientos.php`, `includes/liquidaciones_helper.php`) que detecta cuando el personal de admisiones en Servinte digita por error el código CUPS en la casilla de cantidad.
-- **Normalización Automática a Unidad Real**: Se neutralizan cantidades absurdas (como 881.401 unidades en un examen individual), asignando automáticamente cantidad 1 y aplicando la tarifa real unitaria pactada ($21.400 en vez de cifras anómalas de miles de millones de pesos).
+### Protección y Sanitización de Datos
+- **Filtro Preventivo Anti-Errores de Digitación**: Regla automatizada en el motor de cruce bidireccional que detecta cuando el personal de admisiones hospitalarias digita por error el código del procedimiento en la casilla de cantidad.
+- **Normalización Automática a Unidad Real**: Se neutralizan cantidades anómalas (como cientos de miles de unidades en un procedimiento individual), asignando automáticamente cantidad 1 y aplicando la tarifa real unitaria pactada en lugar de cifras distorsionadas.
 
 ### Transparencia y Experiencia de Usuario (UI/UX)
 - **Indicador Dinámico de Monto Filtrado**: Cuando el usuario realiza una búsqueda o filtra la tabla por un concepto médico específico (ej. RX Simples), la tarjeta superior de *Monto a Pagar* aclara explícitamente el subtotal visible y el consolidado global (`Filtrado (X reg.) • Total: $...`).
 - **Pastilla Interactiva de Filtro Activo**: Visualización de una etiqueta interactiva `[Concepto: CODIGO x]` junto al contador de registros mostrados, permitiendo identificar de inmediato cualquier filtro aplicado y retirarlo con un solo clic.
 
-### Archivos Modificados e Incorporados
-- `config/version.php`
-- `README.md`
-- `CHANGELOG.md`
-- `aprobacion_liquidaciones.php`
-- `examenes_medicos.php`
-- `gestion_medicos_procedimientos.php`
-- `includes/config_helper.php`
-- `includes/email_logger.php`
-- `includes/liquidaciones_helper.php`
-- `includes/navbar.php`
-- `includes/pdf_liquidaciones.php`
-- `includes/permisos_helper.php`
-- `includes/smtp_mailer.php`
-- `maestro_novedades.php` [NUEVO]
-- `medicos.php`
-- `notas_ajuste.php`
-- `validar_email.php`
+### Componentes y Módulos Actualizados
+- Módulo de Conciliación y Cruce de Exámenes
+- Módulo de Aprobación de Liquidaciones
+- Módulo de Notas de Ajuste y Novedades
+- Módulo Maestro de Novedades
+- Motor Central de Liquidación y Retenciones
+- Servicio de Notificaciones y Despacho de Correo Electrónico
+- Plantillas de Generación de Comprobantes en PDF
+- Manual de Usuario Corporativo
 
 ---
 
 ## [1.1.5] - 2026-09-21
 
 ### Diseño y Experiencia de Usuario (UI/UX)
-- **Homologación Visual de Detalle de Liquidación por Sedes (`examenes_medicos.php`)**:
-  - **Identidad Visual Corporativa Unificada**: Se homologó el diseño del modal de pre-liquidación en `examenes_medicos.php` para igualar con total precisión la interfaz moderna y refinada de `aprobacion_liquidaciones.php`.
-  - **Barra de Encabezado Superior Sólida**: Se implementó la barra superior institucional en azul marino oscuro (`bg-primary dark:bg-slate-800 text-white font-bold text-xs tracking-widest text-center uppercase py-2.5 px-4 font-outfit`) con el título `DETALLE DE LIQUIDACIÓN: ESTUDIOS REALIZADOS`.
+- **Homologación Visual de Detalle de Liquidación por Sedes**:
+  - **Identidad Visual Corporativa Unificada**: Se homologó el diseño del modal de pre-liquidación para igualar con total precisión la interfaz moderna y refinada de la pantalla de aprobación de liquidaciones.
+  - **Barra de Encabezado Superior Sólida**: Se implementó la barra superior institucional en azul marino oscuro con el título `DETALLE DE LIQUIDACIÓN: ESTUDIOS REALIZADOS`.
   - **Tarjetas de Sede Homologadas**:
-    - Encabezado con icono de edificio corporativo (`fa-building text-tertiary`), nombre en mayúsculas y botón interactivo `Ver informe ->`.
-    - Insignia compacta integrada en la cabecera cuando existen registros no cruzados (`[!] X NO CRUZADO(S) ($...)`), eliminando franjas amarillas voluminosas dentro del cuerpo de la tarjeta.
-    - Columnas estándar de tabla: `CENTRO DE COSTO`, `CANT`, `VALOR`.
-    - Fila inferior formal de `TOTAL` con la sumatoria de cantidades y montos monetarios en tipografía monoespaciada de alto contraste.
-  - **Reubicación de Alerta Lateral**: El banner de advertencia global de registros no cruzados (`ADVERTENCIA: INCLUYE REGISTROS NO CRUZADOS`) se reubicó en la columna lateral derecha, ubicándose armónicamente sobre `ESTUDIOS POR ESTRUCTURA ADMINISTRATIVA`.
-  - **Encabezado de Tabla de Producción por Médico**: Barra superior sólida azul marino con badge estilizado `Liquidación Global (X Especialistas)` con estructura HTML balanceada.
+    - Encabezado con icono de sede corporativa, nombre en mayúsculas y botón interactivo para informe detallado.
+    - Insignia compacta integrada en la cabecera cuando existen registros no cruzados, eliminando franjas amarillas voluminosas dentro del cuerpo de la tarjeta.
+    - Columnas estándar de tabla: Centro de Costo, Cantidad y Valor.
+    - Fila inferior formal de Total con la sumatoria de cantidades y montos monetarios en tipografía monoespaciada de alto contraste.
+  - **Reubicación de Alerta Lateral**: El banner de advertencia global de registros no cruzados se reubicó en la columna lateral derecha, ubicándose armónicamente sobre la estructura administrativa.
+  - **Encabezado de Tabla de Producción por Médico**: Barra superior sólida azul marino con distintivo estilizado de liquidación global.
 
-### Archivos Modificados
-- `config/version.php`
-- `examenes_medicos.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Módulo de Conciliación de Exámenes
+- Control de Versiones del Sistema
+- Manual de Usuario y Documentación
 
 ---
 
 ## [1.1.4] - 2026-09-21
 
 ### Diseño y Experiencia de Usuario (UI/UX)
-- **Armonización Cromática: Tono Amarillo Mate y Opaco en Modo Claro (`examenes_medicos.php`, `aprobacion_liquidaciones.php`, `gestion_medicos_procedimientos.php`)**:
-  - **Reducción de Saturación y Fatiga Visual**: Se reemplazaron los tonos amarillos fluorescentes y de alta saturación (`border-2 border-amber-300`, `border-amber-400`, `bg-amber-200`, `text-amber-600`) que generaban estridencia visual en modo claro.
-  - **Paleta Mate y Confortable**: Se implementó una paleta equilibrada de tonos lino, arena cálida y bronce/ocre mate (`border-[#dfd5c0]`, `bg-[#fbf9f4]`, gradiente cálido `from-[#fbf8f1] to-[#f7f3e8]`, insignias `bg-[#ece2cb] text-[#4a3713]` y cifras en ocre profundo `text-[#8c5717]`).
-  - **Banners de Pre-Liquidación y Aprobación**:
-    - `#liqBannerAdvertenciaNoCruzados`: Fondo arena suave con borde mate de 1px y textos cálidos legibles sin brillo invasivo.
-    - `#liqBannerBonificacionTomo`: Gradiente pergamino atenuado, cápsula de regla institucional en biscuit cálido y total monetario en ocre mate de alto contraste.
-    - `#liqBannerExclusiones`: Botón y contenedor estilizados con textura mate no saturada.
-  - **Tarjetas y Detalle de Sedes**:
-    - Las tarjetas de sede con registros no cruzados ahora presentan un borde neutro cálido (`border-[#ddd3be]`), punto indicador ocre no incandescente (`bg-[#a6792c]`) y franja de alerta suave (`bg-[#f8f5ee] border-[#e4d9c4]`).
-    - Las filas de bonificación por productividad en tomografías lucen un fondo lino mate que armoniza con la tabla administrativa.
-  - **Modo Oscuro Preservado**: Se mantuvo intacta la armonía de alto contraste en modo oscuro (`dark:bg-[#20170a]`, `dark:border-amber-500/60`, `dark:text-amber-100`).
+- **Armonización Cromática: Tono Amarillo Mate y Opaco en Modo Claro**:
+  - **Reducción de Saturación y Fatiga Visual**: Se reemplazaron los tonos amarillos fluorescentes y de alta saturación que generaban estridencia visual en modo claro.
+  - **Paleta Mate y Confortable**: Se implementó una paleta equilibrada de tonos lino, arena cálida y bronce/ocre mate, insignias atenuadas y cifras en ocre profundo de alto contraste.
+  - **Banners de Pre-Liquidación y Aprobación**: Fondo arena suave con borde mate de 1px y textos cálidos legibles sin brillo invasivo.
+  - **Tarjetas y Detalle de Sedes**: Bordes neutros cálidos, punto indicador ocre no incandescente y franja de alerta suave.
+  - **Modo Oscuro Preservado**: Se mantuvo intacta la armonía de alto contraste en modo oscuro.
 
-### Archivos Modificados
-- `config/version.php`
-- `examenes_medicos.php`
-- `aprobacion_liquidaciones.php`
-- `gestion_medicos_procedimientos.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Módulos de Conciliación y Liquidación
+- Pantalla de Aprobación de Liquidaciones
+- Directorio de Médicos y Asignación de Procedimientos
 
 ---
 
 ## [1.1.3] - 2026-09-21
 
 ### Novedades y Transparencia Financiera
-- **Visualización y Desglose del Concepto de Bonificación por Tomografías (`aprobacion_liquidaciones.php`)**:
-  - **Identificación y Aislamiento de Concepto**: Ahora el bono de tomografías contrastadas (regla de 50 tomografías × $150.000 COP, código `BONI_TOHO`) se desagrega y presenta como un concepto institucional independiente (`BONIFICACIÓN TOMOGRAFÍAS`), evitando que quede oculto o agrupado dentro del concepto de `RXSI`.
-  - **Banner Corporativo de Incentivo**: Al abrir el detalle de una liquidación (`Ver Detalle`), si el profesional cuenta con bonos causados, se despliega un banner destacado en gradiente dorado/ámbar con icono de mérito, especificando la regla aplicada, la sede donde se reconoció y el valor monetario adicional.
-  - **Fila Destacada por Sede**: En la tabla de centros de costo de cada sede, la bonificación se resalta con distintivo ámbar, indicando la cantidad exacta de bonos alcanzados (`1 bono(s)`) y el monto (`+$150.000 COP`).
-  - **Auditoría en Informe Detallado de Sede**: En la vista drill-down por sede (`Ver informe`), se incluye la bonificación tanto en el resumen de conceptos como en la tabla cronológica de registros con etiqueta `INCENTIVO POR PRODUCTIVIDAD` e insignia `Bonificación`.
-  - **Exportación en Excel y PDF**: Se actualizó la exportación completa a Excel y la generación de PDF oficial para que el concepto de incentivo se describa explícitamente como `BONIFICACIÓN TOMOGRAFÍAS (REGLA 50 CT x $150.000 COP)`.
-  - **Regeneración Dinámica y Retrocompatibilidad**: En `includes/liquidaciones_helper.php`, se adaptó `generarResumenSedesJSON()` y `obtenerLiquidacionPorIdBD()` para recalcular y actualizar en caliente el resumen de sedes en liquidaciones que contengan el bono.
-  - **Actualización del Manual de Usuario**: Se incorporó en `manual_usuario.php` la explicación operativa sobre la visualización e interpretación del bono de tomografías en las liquidaciones.
+- **Visualización y Desglose del Concepto de Bonificación por Tomografías**:
+  - **Identificación y Aislamiento de Concepto**: La bonificación de tomografías contrastadas por cumplimiento de meta de productividad se desagrega y presenta como un concepto institucional independiente, evitando agrupaciones opacas.
+  - **Banner Corporativo de Incentivo**: Al abrir el detalle de una liquidación, se despliega un banner destacado en gradiente dorado/ámbar especificando la regla aplicada, la sede donde se reconoció y el valor monetario adicional.
+  - **Fila Destacada por Sede**: En la tabla de centros de costo de cada sede, la bonificación se resalta con distintivo ámbar, indicando la cantidad exacta de bonos alcanzados y el monto reconocido.
+  - **Auditoría en Informe Detallado de Sede**: En la vista drill-down por sede, se incluye la bonificación tanto en el resumen de conceptos como en la tabla cronológica de registros.
+  - **Exportación en Excel y PDF**: Inclusión de la descripción explícita del incentivo en reportes en hojas de cálculo y documentos oficiales en PDF.
 
-### Archivos Modificados
-- `config/version.php`
-- `aprobacion_liquidaciones.php`
-- `includes/liquidaciones_helper.php`
-- `includes/pdf_liquidaciones.php`
-- `notas_ajuste.php`
-- `manual_usuario.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Módulo de Aprobación de Liquidaciones
+- Motor de Cálculo y Resumen de Sedes
+- Generador de Comprobantes PDF
+- Manual de Usuario Corporativo
 
 ---
 
 ## [1.1.2] - 2026-09-21
 
 ### Mejoras de Navegación
-- **Apertura en Nueva Pestaña (`target="_blank"`)**:
-  - Se configuraron todos los accesos al **Manual de Usuario** (Dashboard, Drawer de Módulos, Menú de Usuario y Footer) con `target="_blank"` y `rel="noopener noreferrer"`.
-  - Ahora el manual se abre en una pestaña independiente sin interrumpir la sesión o el flujo de trabajo activo en el sistema.
+- **Apertura de Documentación en Nueva Pestaña**:
+  - Se configuraron todos los accesos al Manual de Usuario (panel principal, menú de módulos, menú de perfil y pie de página) para abrir en una pestaña independiente sin interrumpir la sesión o el flujo de trabajo activo en el sistema.
 
-### Archivos Modificados
-- `config/version.php`
-- `dashboard.php`
-- `includes/navbar.php`
-- `includes/footer.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Panel Principal y Barra de Navegación
+- Pie de Página Global
 
 ---
 
@@ -136,51 +107,39 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ### Mejoras y Refinamiento Visual
 - **Limpieza de Barra de Navegación**:
-  - Retiro del botón del manual de la barra superior para preservar la estética limpia y minimalista del header.
-- **Restauración del Hero Banner de Bienvenida**:
-  - Eliminación de la tarjeta interna en el banner principal del Dashboard, devolviéndole su formato limpio y equilibrado.
+  - Retiro de botones redundantes de la barra superior para preservar una estética limpia y minimalista.
+- **Restauración del Banner de Bienvenida**:
+  - Eliminación de elementos invasivos en el banner principal del panel de control, devolviéndole su formato limpio y equilibrado.
 - **Ubicación Integrada del Manual de Usuario**:
-  - Integración como módulo oficial dentro del Drawer offcanvas de **Módulos (`grid_view`)**.
-  - Acceso sutil como botón secundario en el encabezado de la sección de *Acciones Rápidas de Control*.
-  - Mantenimiento del acceso en el menú desplegable del avatar de usuario y en el pie de página.
+  - Integración como módulo oficial dentro del cajón lateral de herramientas y módulos.
+  - Mantenimiento del acceso en el menú de usuario y en el pie de página.
 
-### Archivos Modificados
-- `config/version.php`
-- `includes/navbar.php`
-- `dashboard.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Barra de Navegación Principal
+- Panel de Control (Dashboard)
 
 ---
 
 ## [1.1.0] - 2026-09-21
 
 ### Novedades
-- **Manual de Usuario Corporativo Interactivo (`manual_usuario.php`)**:
+- **Manual de Usuario Corporativo Interactivo**:
   - Plataforma integral de documentación institucional y guía operativa para la IPS Hernán Ocazionez y Cía S.A.S.
   - Buscador en tiempo real para encontrar secciones y términos clave al instante.
-  - Filtro interactivo por perfil de usuario (`Todos`, `Médico`, `Financiero`, `Administrador`).
-  - Documentación paso a paso de los 9 módulos del sistema: conciliación bidireccional, liquidaciones, notas de ajuste, tarifarios y vigencias temporales, bloqueos, certificados tributarios y control forense.
+  - Filtro interactivo por perfil de usuario (General, Médico, Financiero, Administrador).
+  - Documentación paso a paso de los módulos del sistema: conciliación bidireccional, liquidaciones, notas de ajuste, tarifarios y vigencias temporales, bloqueos, certificados tributarios y control de auditoría.
   - Función de impresión y exportación a PDF para archivo físico o digital.
 - **Acceso Rápido y Destacado en Interfaz**:
-  - Botón prominente en la barra de navegación (`includes/navbar.php`) con badge dinámico de versión.
-  - Tarjeta de acceso interactiva dentro del banner de bienvenida principal (`dashboard.php`).
-  - Enlace directo en el menú desplegable de usuario y en el pie de página (`includes/footer.php`).
+  - Acceso directo en la barra de navegación con indicador dinámico de versión.
+  - Integración en el panel de bienvenida principal y en el pie de página global.
 
 ### Mejoras
-- **Centralización del Versionado (`config/version.php`)**:
-  - Creación de constantes institucionales `LIHO_VERSION`, `LIHO_VERSION_DATE` y `LIHO_VERSION_NAME` vinculadas a todas las vistas, footer, navbar y changelog.
-- **Normalización de Versión en Footer**:
-  - Reemplazo de versión estática por la constante centralizada `LIHO_VERSION`.
+- **Centralización del Versionado**:
+  - Creación de constantes institucionales de versión sincronizadas con el repositorio y el manual de usuario.
 
-### Archivos Modificados
-- `config/version.php` [NUEVO]
-- `manual_usuario.php` [NUEVO]
-- `includes/navbar.php`
-- `includes/footer.php`
-- `dashboard.php`
-- `README.md`
-- `CHANGELOG.md`
+### Componentes Actualizados
+- Módulo de Documentación Interactiva
+- Barra de Navegación y Pie de Página
 
 ---
 
@@ -188,50 +147,34 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ### Versión Base Inicial y Consolidación del Sistema
 
-Esta versión establece la línea base formal del sistema **LIHO** bajo control de versiones Git, integrando los módulos diagnósticos, administrativos, financieros y de conciliación clínica.
+Esta versión establece la línea base formal del sistema **LIHO** bajo control de versiones, integrando los módulos diagnósticos, administrativos, financieros y de conciliación clínica.
 
 #### Cruce Bidireccional de Exámenes y Liquidación
-- **Cruce Automático Proteo vs Servinte**: Algoritmo de conciliación por pares Fuente-Ingreso con detección de discrepancias y estados de cruce (`CRUZADOS_OK`, `SOLO_PROTEO`, `SOLO_SERVINTE`).
+- **Cruce Automático**: Algoritmo de conciliación por pares Fuente-Ingreso con detección de discrepancias y estados de coincidencia.
 - **Cálculo de Tarifas y Modalidades**:
-  - Detección de tipo de paciente: Entidad (`E`) vs Particular (`P`).
-  - Regla especial de **Bonificación para Tomografías Contrastadas** (50 exámenes x $150.000 COP).
-  - Modalidades dinámicas: Degluciones (45%), Tarifas Especiales (30%), Pago Dinámico porcentual y por valor fijo.
-  - Soporte de base de cálculo (`VALOR_LIQUIDACION` vs `VALOR_EXAMEN`).
-  - Flag de `pagar_por_cantidad` para multiplicar o fijar el valor unitario.
+  - Detección de tipo de paciente (Entidad vs Particular).
+  - Regla especial de incentivo para tomografías contrastadas.
+  - Modalidades dinámicas de liquidación porcentual y por valor fijo.
+  - Configuración de base de cálculo por valor de liquidación o valor facturado.
+  - Control de liquidación por unidad o tarifa única.
 
 #### Tarifarios y Vigencias Temporales
-- Catálogo maestro de tarifas por código CUPS y entidad de salud.
-- Sistema de **Vigencias Temporales** con fechas de inicio (`vigencia_desde`) y fin (`vigencia_hasta`), permitiendo resolución histórica exacta de la tarifa que aplicaba en la fecha en que se realizó el examen médico.
-- Módulo de Tarifarios Especiales por médico y por examen.
-- Bloqueos de tarifas para restringir procedimientos no autorizados.
+- Catálogo maestro de tarifas por código de procedimiento y entidad de salud.
+- Sistema de **Vigencias Temporales** con fechas de inicio y fin, permitiendo resolución histórica exacta de la tarifa aplicable a la fecha del examen.
+- Módulo de Tarifarios Especiales por profesional y por procedimiento.
+- Bloqueos de tarifas para restringir procedimientos no reconocidos.
 
 #### Gestión Financiera, Aprobaciones y Retenciones
-- Pantalla de aprobación de liquidaciones con estados de flujo de trabajo.
-- Módulo de Notas de Ajuste débito y crédito con trazabilidad de usuario y motivo.
-- Emisión de Certificados Tributarios oficiales con retención en la fuente en PDF (FPDF).
+- Pantalla de aprobación de liquidaciones con estados de flujo de trabajo formal.
+- Módulo de Notas de Ajuste débito y crédito con trazabilidad de usuario y justificación contable.
+- Emisión de Certificados Tributarios oficiales con retención en la fuente en PDF.
 
 #### Seguridad, Auditoría y Entornos
-- Cifrado AES-256 en cadenas de conexión a bases de datos (`security_crypto.php`).
-- Autenticación con tokens de acceso vía correo electrónico (Gmail SMTP).
-- Asignación granular de roles (`ADMINISTRADOR`, `FINANCIERO`, `MÉDICO`) y permisos por vista.
-- Módulo de configuración de entorno: bloqueo de correos a médicos en desarrollo con redirección controlada a cuenta de pruebas.
-- Trazabilidad con `audit_logger.php` y registro de accesos.
-
-#### Correcciones y Optimizaciones
-- **examenes_medicos.php**: Corrección de variable no inicializada `$valorUndServinte` en la línea 1569 que provocaba advertencias PHP y rompía la respuesta JSON en el navegador.
-- **Optimización de Índices en SQL Server**:
-  - Depuración y creación del índice `IX_tarifario_estado1` (`[estado], [entidad_id]`) con columnas calculadas para acelerar la carga de tarifas en milisegundos.
-  - Implementación del índice `IX_tarifario_version_id1` para búsquedas históricas por versión.
-  - Eliminación de índices redundantes que sobrecargaban las operaciones de escritura.
-
-#### Archivos Principales Incorporados
-- `examenes_medicos.php` — Conciliación bidireccional y liquidación médica.
-- `tarifario.php`, `historial_tarifario.php`, `tarifario_especial.php`, `tarifario_bloqueos.php` — Gestión tarifaria.
-- `aprobacion_liquidaciones.php`, `notas_ajuste.php`, `certificados_tributarios.php` — Módulos financieros.
-- `medicos.php`, `gestion_medicos_procedimientos.php` — Directorio médico.
-- `maestro_entidades.php`, `maestro_porcentajes.php`, `maestro_parafiscales.php` — Tablas maestras.
-- `usuarios.php`, `gestion_roles.php`, `logs.php` — Administración y auditoría.
-- `cron_alerta_medicos.php`, `alerta_medicos.php` — Tareas programadas de notificación.
+- Cifrado robusto en almacenamiento de credenciales y parámetros de conexión.
+- Autenticación con verificación de códigos temporales vía correo electrónico corporativo.
+- Asignación granular de roles (Administrador, Financiero, Médico) y permisos por funcionalidad.
+- Módulo de protección de entorno para prevenir notificaciones accidentales en pruebas.
+- Trazabilidad y auditoría completa de eventos y registros de acceso.
 
 ---
 
@@ -252,9 +195,8 @@ Cada vez que se realicen cambios significativos, se añadirá una nueva sección
 - Solución de errores reportados o comportamientos inesperados.
 
 ### Seguridad y Configuración
-- Cambios en políticas de acceso, credenciales o variables de entorno.
+- Cambios en políticas de acceso, credenciales o parámetros globales.
 
-### Archivos Modificados
-- `archivo1.php`
-- `archivo2.php`
+### Componentes Actualizados
+- Lista de módulos y submódulos intervenidos.
 ```

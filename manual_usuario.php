@@ -235,7 +235,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <div class="flex items-center gap-2 font-bold text-primary dark:text-tertiary">
                                     <span class="material-symbols-outlined text-lg text-emerald-500">database</span>
-                                    <span>PROTEO (SQL Server)</span>
+                                    <span>Sistema Asistencial Clínico (Proteo)</span>
                                 </div>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
                                     Registra la <strong>producción médica asistencial</strong>: exámenes leídos, diagnósticos ejecutados, médicos informantes y fechas clínicas.
@@ -245,7 +245,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <div class="flex items-center gap-2 font-bold text-primary dark:text-tertiary">
                                     <span class="material-symbols-outlined text-lg text-cyan-500">account_balance</span>
-                                    <span>SERVINTE (Oracle)</span>
+                                    <span>Sistema de Facturación Hospitalaria (Servinte)</span>
                                 </div>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
                                     Registra la <strong>gestión hospitalaria y facturación</strong>: ingresos de pacientes, órdenes, facturas emitidas, entidades responsables y copagos.
@@ -262,7 +262,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                     </div>
                 </section>
 
-                <!-- SECCIÓN 2: CRUCE PROTEO VS SERVINTE -->
+                <!-- SECCIÓN 2: CRUCE ASISTENCIAL VS FACTURACIÓN -->
                 <section id="sec-cruce-examenes" class="manual-section bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-sm" data-roles="all,admin,financiero">
                     <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                         <div class="p-3 rounded-2xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400">
@@ -276,7 +276,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
 
                     <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-4 leading-relaxed font-medium">
                         <p>
-                            Disponible en <code>examenes_medicos.php</code>. Este módulo permite conciliar la totalidad de exámenes realizados en un rango de fechas y aplicar las reglas de liquidación matemática:
+                            Disponible en el módulo de <strong>Cruce Bidireccional de Exámenes</strong>. Este módulo permite conciliar la totalidad de exámenes realizados en un rango de fechas y aplicar las reglas de liquidación matemática:
                         </p>
 
                         <div class="space-y-3">
@@ -286,16 +286,16 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             </h3>
                             <ul class="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <li class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-xs">
-                                    <span class="font-extrabold text-emerald-700 dark:text-emerald-300 block mb-1">✔ CRUZADOS OK</span>
+                                    <span class="font-extrabold text-emerald-700 dark:text-emerald-300 block mb-1">CRUZADOS OK</span>
                                     El par Fuente e Ingreso coincide en ambos sistemas. Está listo para liquidación.
                                 </li>
                                 <li class="p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 text-xs">
-                                    <span class="font-extrabold text-sky-700 dark:text-sky-300 block mb-1">🔍 SOLO EN PROTEO</span>
+                                    <span class="font-extrabold text-sky-700 dark:text-sky-300 block mb-1">SOLO EN PROTEO</span>
                                     Existe la lectura clínica pero falta validación o facturación en Servinte.
                                 </li>
                                 <li class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-xs">
-                                    <span class="font-extrabold text-amber-700 dark:text-amber-300 block mb-1">⚠️ SOLO EN SERVINTE</span>
-                                    Está facturado en el ERP pero aún no reporta informe médico en Proteo.
+                                    <span class="font-extrabold text-amber-700 dark:text-amber-300 block mb-1">SOLO EN SERVINTE</span>
+                                    Está facturado en el sistema hospitalario pero aún no reporta informe médico en Proteo.
                                 </li>
                             </ul>
                         </div>
@@ -313,8 +313,23 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                                     <strong>3. Tarifas Especiales:</strong> Liquidación diferenciada al 30% para pacientes particulares (<code>P</code>).
                                 </div>
                                 <div>
-                                    <strong>4. Base de Cálculo:</strong> Si el examen está configurado como <code>VALOR_EXAMEN</code>, se toma el valor unitario de Servinte; si es <code>VALOR_LIQUIDACION</code>, se toma la tarifa fija de LIHO.
+                                    <strong>4. Base de Cálculo:</strong> Si el examen está configurado para liquidarse por valor de examen, se toma el valor facturado; si es por liquidación tarifaria, se toma la tarifa fija pactada en LIHO.
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                            <div class="p-3.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 space-y-1">
+                                <span class="font-bold text-xs text-teal-800 dark:text-teal-200 block">Sanitización Preventiva de Cantidades (Anti-Error):</span>
+                                <p class="text-xs text-slate-600 dark:text-slate-300">
+                                    El cruce incorpora una regla de validación inteligente que detecta cuando en admisiones hospitalarias se digita por error el código del examen en la casilla de cantidad. LIHO normaliza automáticamente la cantidad a 1 unidad y liquida la tarifa real correspondiente, impidiendo sumas anómalas en las liquidaciones.
+                                </p>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-1">
+                                <span class="font-bold text-xs text-indigo-800 dark:text-indigo-200 block">Filtros Dinámicos por Concepto y Feedback Visual:</span>
+                                <p class="text-xs text-slate-600 dark:text-slate-300">
+                                    Al hacer clic en una tarjeta de concepto (ej. RX Simples), la tabla se segmenta de inmediato y la tarjeta superior de <em>Monto a Pagar</em> desglosa con exactitud el subtotal visible frente al total consolidado, ofreciendo una pastilla interactiva para retirar el filtro en un clic.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -334,7 +349,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
 
                     <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-4 leading-relaxed font-medium">
                         <p>
-                            Ubicado en <code>tarifario.php</code> e <code>historial_tarifario.php</code>. Permite administrar los precios unitarios de cada código CUPS y controlar su evolución temporal mediante vigencias.
+                            Ubicado en el módulo <strong>Catálogo Tarifario</strong> y en el <strong>Historial de Tarifas</strong>. Permite administrar los precios unitarios de cada código CUPS y controlar su evolución temporal mediante vigencias.
                         </p>
 
                         <div class="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2">
@@ -379,7 +394,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <h4 class="font-bold text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
                                     <span class="material-symbols-outlined text-base">star</span>
-                                    <span>Tarifario Especial (<code>tarifario_especial.php</code>)</span>
+                                    <span>Tarifario Especial</span>
                                 </h4>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
                                     Permite asignar precios específicos a un examen cuando es ejecutado por un médico particular o bajo un convenio exclusivo.
@@ -389,7 +404,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
                                 <h4 class="font-bold text-xs text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
                                     <span class="material-symbols-outlined text-base">block</span>
-                                    <span>Bloqueos de Cobro (<code>tarifario_bloqueos.php</code>)</span>
+                                    <span>Bloqueos de Cobro</span>
                                 </h4>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
                                     Inhabilita el pago de ciertos códigos CUPS que correspondan a procedimientos no reconocidos por convenio o cubiertos por otra vía.
@@ -399,7 +414,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                     </div>
                 </section>
 
-                <!-- SECCIÓN 5: LIQUIDACIONES Y AJUSTES -->
+                <!-- SECCIÓN 5: LIQUIDACIONES, NOVEDADES Y AJUSTES -->
                 <section id="sec-liquidaciones-ajustes" class="manual-section bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200/80 dark:border-slate-800 shadow-sm" data-roles="all,admin,financiero,medico">
                     <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                         <div class="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
@@ -407,13 +422,13 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                         </div>
                         <div>
                             <span class="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">Finanzas & Pagos</span>
-                            <h2 class="text-xl sm:text-2xl font-black text-primary dark:text-white">5. Liquidaciones y Notas de Ajuste</h2>
+                            <h2 class="text-xl sm:text-2xl font-black text-primary dark:text-white">5. Liquidaciones, Novedades y Ajustes</h2>
                         </div>
                     </div>
 
                     <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-4 leading-relaxed font-medium">
                         <p>
-                            Ubicado en <code>aprobacion_liquidaciones.php</code> y <code>notas_ajuste.php</code>.
+                            Ubicado en el módulo de <strong>Aprobación de Liquidaciones</strong>, <strong>Notas de Ajuste</strong> y <strong>Maestro de Novedades</strong>.
                         </p>
                         <div class="space-y-3">
                             <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
@@ -426,19 +441,26 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
                                 <span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs shrink-0">2</span>
                                 <div>
-                                    <strong class="text-xs text-primary dark:text-white">Revisión y Aprobación:</strong>
-                                    El equipo financiero valida los montos. Al marcar como <em>Aprobada</em>, el médico puede visualizar su desglose oficial.
+                                    <strong class="text-xs text-primary dark:text-white">Afectación de Novedades sobre Total Factura:</strong>
+                                    Las novedades (adiciones o descuentos) se aplican directamente sobre la base del <strong>Total Factura / Valor General</strong> antes de deducciones. A este nuevo valor general consolidado se le calculan y aplican todas las deducciones de ley (aportes a salud, pensión, ARL y retenciones tributarias), asegurando equidad y exactitud contable.
                                 </div>
                             </div>
                             <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
                                 <span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs shrink-0">3</span>
                                 <div>
-                                    <strong class="text-xs text-primary dark:text-white">Notas de Ajuste:</strong>
-                                    Si surge alguna discrepancia posterior, se emite una Nota Débito o Crédito en <code>notas_ajuste.php</code> especificando la justificación y monto exacto.
+                                    <strong class="text-xs text-primary dark:text-white">Revisión, Aprobación y Copia Institucional:</strong>
+                                    El equipo financiero valida los montos. Al marcar como <em>Aprobada</em>, el médico puede visualizar su desglose oficial. Adicionalmente, el sistema remite automáticamente una copia de las notificaciones oficiales a <strong>Mary Luz Ríos</strong> para auditoría y control contable.
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700">
+                                <span class="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center font-bold text-xs shrink-0">4</span>
+                                <div>
+                                    <strong class="text-xs text-primary dark:text-white">Notas de Ajuste y Maestro de Novedades:</strong>
+                                    Si surge alguna discrepancia posterior, se emite una Nota Débito o Crédito en el módulo de Notas de Ajuste especificando la justificación y monto. A través del módulo Maestro de Novedades, la institución parametriza los conceptos y naturalezas de novedades habilitadas.
                                 </div>
                             </div>
                             <div class="flex items-start gap-3 p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60">
-                                <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">4</span>
+                                <span class="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">5</span>
                                 <div>
                                     <strong class="text-xs text-amber-900 dark:text-amber-200">Desglose de Conceptos e Incentivos (Bono Tomografías):</strong>
                                     En el modal de detalle (<em>Ver Detalle</em>) y en los informes por sede, se presenta un desglose claro e individualizado de los conceptos liquidados. Los incentivos de productividad por tomografías contrastadas (regla de 50 estudios contrastados × $150.000 COP) se muestran con insignias destacadas, banner corporativo e información detallada de la sede donde se causó.
@@ -462,10 +484,10 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
 
                     <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-4 leading-relaxed font-medium">
                         <p>
-                            En <code>medicos.php</code> y <code>gestion_medicos_procedimientos.php</code> se gestiona el perfil asistencial de cada doctor:
+                            En el módulo de <strong>Directorio Médico</strong> y <strong>Gestión de Procedimientos</strong> se gestiona el perfil asistencial de cada doctor:
                         </p>
                         <ul class="list-disc list-inside space-y-1 text-xs text-slate-600 dark:text-slate-300">
-                            <li><strong>Entidad / IPS Perteneciente:</strong> Permite asignar al médico a Hernán Ocazionez o a entidades aliadas (ej. IMADINSA).</li>
+                            <li><strong>Entidad / IPS Perteneciente:</strong> Permite asignar al médico a Hernán Ocazionez o a entidades aliadas.</li>
                             <li><strong>Modalidades Especiales:</strong> Habilitar flags de Degluciones, Tarifas Especiales o Pago Dinámico.</li>
                             <li><strong>Catálogo de Procedimientos Autorizados:</strong> Matriz individual de códigos CUPS que el médico tiene avalados para informar.</li>
                         </ul>
@@ -486,7 +508,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
 
                     <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-4 leading-relaxed font-medium">
                         <p>
-                            En <code>certificados_tributarios.php</code>, tanto el área administrativa como cada médico especialista pueden consultar y descargar en formato PDF oficial su certificado de retención anual y bimestral.
+                            En el módulo de <strong>Certificados Tributarios</strong>, tanto el área administrativa como cada médico especialista pueden consultar y descargar en formato PDF oficial su certificado de retención anual y bimestral.
                         </p>
                         <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-xs">
                             <strong>Autoservicio Médico:</strong> Los médicos que inicien sesión con su usuario personal pueden ir al menú de usuario (esquina superior derecha) y hacer clic en <em>"Certificados Tributarios"</em> para descargar instantáneamente sus constancias sin necesidad de radicar solicitudes al departamento contable.
@@ -513,7 +535,7 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs">
                                 <span class="font-extrabold text-primary dark:text-white block mb-1">Maestro de Entidades</span>
-                                Gestión multi-empresa: Hernán Ocazionez y Cía S.A.S., IMADINSA SAS y sedes asociadas.
+                                Gestión multi-empresa: Hernán Ocazionez y Cía S.A.S., sedes e instituciones aliadas.
                             </div>
                             <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs">
                                 <span class="font-extrabold text-primary dark:text-white block mb-1">Porcentajes de Pago</span>
@@ -554,10 +576,10 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-2">
                                 <h4 class="font-bold text-xs text-primary dark:text-white flex items-center gap-1.5">
                                     <span class="material-symbols-outlined text-base text-rose-500">history</span>
-                                    <span>Auditoría Inalterable (<code>logs.php</code>)</span>
+                                    <span>Auditoría Inalterable y Logs de Actividad</span>
                                 </h4>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">
-                                    Cada inserción, edición de tarifa, cambio de rol o eliminación queda registrada con dirección IP, timestamp, usuario y valores previos y nuevos.
+                                    Cada inserción, edición de tarifa, cambio de rol o eliminación queda registrada con dirección IP, marca de tiempo, usuario responsable y valores previos y nuevos.
                                 </p>
                             </div>
                         </div>
@@ -593,12 +615,23 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
 
                         <!-- Resumen Dinámico de Cambios -->
                         <div class="space-y-3 pt-2 text-xs text-slate-600 dark:text-slate-300">
+                            <div class="p-4 rounded-2xl bg-teal-50/60 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 space-y-2">
+                                <span class="font-extrabold text-teal-900 dark:text-teal-200 block text-xs">Versión 1.1.6 (2026-09-23):</span>
+                                <ul class="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                                    <li><strong>Afectación de Novedades sobre Total Factura:</strong> Las notas de ajuste y novedades ahora impactan directamente la base del Total Factura / Valor General, permitiendo que todas las deducciones de ley (aportes a salud, pensión y retenciones en la fuente) se calculen proporcionalmente sobre el nuevo valor consolidado ajustado.</li>
+                                    <li><strong>Copia Automática a Mary Luz Ríos:</strong> Integración en el servicio de despacho de correos para que todas las liquidaciones y comprobantes enviados a los médicos cuenten con copia obligatoria de auditoría institucional.</li>
+                                    <li><strong>Sanitización Preventiva en Cruce:</strong> Detección y normalización automática contra errores de digitación en cantidades hospitalarias, protegiendo las liquidaciones contra montos distorsionados.</li>
+                                    <li><strong>Transparencia Visual de Filtros:</strong> Indicador explícito de montos filtrados en tiempo real y etiqueta interactiva para retirar filtros de concepto con un solo clic.</li>
+                                    <li><strong>Módulo Maestro de Novedades:</strong> Panel administrativo para la parametrización centralizada de tipos y naturalezas de novedades institucionales.</li>
+                                </ul>
+                            </div>
+
                             <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-2">
-                                <span class="font-extrabold text-primary dark:text-white block text-xs">🚀 Novedades v1.1.0:</span>
+                                <span class="font-extrabold text-primary dark:text-white block text-xs">Versión 1.1.0:</span>
                                 <ul class="list-disc list-inside space-y-1 text-slate-500 dark:text-slate-400">
                                     <li>Lanzamiento del <strong>Manual de Uso Corporativo Interactivo</strong> con filtrado por rol y búsqueda en vivo.</li>
                                     <li>Botones de acceso destacados con badges de versión en el header principal y en el panel de bienvenida.</li>
-                                    <li>Centralización del versionado institucional en <code>config/version.php</code> sincronizado con Git y GitHub.</li>
+                                    <li>Centralización del versionado institucional sincronizado con el repositorio.</li>
                                     <li>Corrección de advertencia de variable unitaria en conciliación de exámenes médicos.</li>
                                 </ul>
                             </div>
