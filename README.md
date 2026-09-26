@@ -1,7 +1,7 @@
 # LIHO | Sistema de Liquidación de Honorarios Médicos
 ### Hernán Ocazionez y Cía S.A.S. — Sistemas Diagnósticos
 
-![Version](https://img.shields.io/badge/Version-v1.1.6-success)
+![Version](https://img.shields.io/badge/Version-v1.1.7-success)
 ![Manual](https://img.shields.io/badge/Manual-Corporativo%20Interactivo-teal)
 ![Status](https://img.shields.io/badge/Status-Activo-emerald)
 
@@ -43,10 +43,13 @@ Cuenta con un **Manual de Usuario Corporativo Interactivo** accesible directamen
 
 ### 5. Aprobación de Liquidaciones, Ajustes y Novedades
 - Flujo de revisión, aprobación y emisión de preliquidaciones para el equipo financiero y administrativo.
+- **Reenvío Institucional de Liquidaciones por Correo**: Despacho formal e interactivo de expedientes a Médico Titular, Dirección Médica y Usuario Creador con adjuntos oficiales en PDF y Excel, confirmación modal previa (SweetAlert2) y auditoría dual obligatoria en bitácora unificada.
+- **Huella Digital Criptográfica (SHA-256) Persistente**: Verificación de integridad inmutable almacenada en base de datos para todas las liquidaciones y expuesta en el reporte oficial PDF y en las notificaciones electrónicas.
+- **Seguridad y Control de Envíos**: Aislamiento estricto de cuentas de desarrollador en entornos de prueba (`estanCorreosMedicosBloqueados()`) y producción.
 - **Gestión Integral de Novedades**: Registro de adiciones y descuentos que impactan directamente el Total Factura / Valor General, aplicando proporcionalmente las deducciones de ley (salud, pensión y retenciones) sobre la base consolidada ajustada.
 - **Transparencia en Bonificaciones**: Desglose explícito e individualizado de incentivos de productividad por tomografías con distintivos institucionales y auditoría por sede.
 - Registro de **Notas de Ajuste** (débito/crédito) con auditoría completa de motivos, conciliación de saldos y doble huella criptográfica SHA-256.
-- Generación de comprobantes de liquidación oficiales en PDF y reportes detallados en hojas de cálculo.
+- Generación de comprobantes de liquidación oficiales en PDF con estado dinámico y reportes detallados en hojas de cálculo.
 
 ### 6. Certificados Tributarios
 - Emisión formal de certificados de retención en la fuente para médicos especialistas.

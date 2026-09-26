@@ -309,11 +309,22 @@ function generarResumenSedesJSON($detalles) {
                 if ($esBoni) {
                     $grp = 'BONIFICACIÓN TOMOGRAFÍAS';
                     if (!isset($conceptos[$grp])) {
-                        $conceptos[$grp] = array('cantidad' => 0, 'total' => 0, 'es_bonificacion' => true);
+                        $conceptos[$grp] = array(
+                            'cantidad' => 0, 
+                            'total' => 0, 
+                            'es_bonificacion' => true,
+                            'cruzado_cant' => 0,
+                            'cruzado_valor' => 0,
+                            'no_cruzado_cant' => 0,
+                            'no_cruzado_valor' => 0,
+                            'cruce_tipos' => array()
+                        );
                     }
                     $conceptos[$grp]['cantidad'] += $cant;
                     $conceptos[$grp]['total'] += $v;
-                } elseif ($cruce === 'CRUZADO') {
+                    $conceptos[$grp]['cruzado_cant'] += $cant;
+                    $conceptos[$grp]['cruzado_valor'] += $v;
+                } else {
                     $servUpper = strtoupper(trim($ex['servicio'] ?? ''));
                     $conUpper  = strtoupper(trim($ex['concepto'] ?? ''));
                     $ccUpper   = strtoupper(trim($ex['cuenta_contable'] ?? ''));
@@ -348,13 +359,32 @@ function generarResumenSedesJSON($detalles) {
                     }
 
                     if (!isset($conceptos[$grp])) {
-                        $conceptos[$grp] = array('cantidad' => 0, 'total' => 0);
+                        $conceptos[$grp] = array(
+                            'cantidad' => 0, 
+                            'total' => 0, 
+                            'es_bonificacion' => false,
+                            'cruzado_cant' => 0,
+                            'cruzado_valor' => 0,
+                            'no_cruzado_cant' => 0,
+                            'no_cruzado_valor' => 0,
+                            'cruce_tipos' => array()
+                        );
                     }
                     $conceptos[$grp]['cantidad'] += $cant;
                     $conceptos[$grp]['total'] += $v;
-                } else {
-                    $noCruzadosCant += $cant;
-                    $noCruzadosVal += $v;
+
+                    if ($cruce === 'CRUZADO') {
+                        $conceptos[$grp]['cruzado_cant'] += $cant;
+                        $conceptos[$grp]['cruzado_valor'] += $v;
+                    } else {
+                        $noCruzadosCant += $cant;
+                        $noCruzadosVal += $v;
+                        $conceptos[$grp]['no_cruzado_cant'] += $cant;
+                        $conceptos[$grp]['no_cruzado_valor'] += $v;
+                        if (!in_array($cruce, $conceptos[$grp]['cruce_tipos'])) {
+                            $conceptos[$grp]['cruce_tipos'][] = $cruce;
+                        }
+                    }
                 }
             }
         }
@@ -458,8 +488,62 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
     $resumenSedesJson = generarResumenSedesJSON($detallesJson);
     $exclusionesJson  = is_string($data['exclusiones_json'] ?? '') ? $data['exclusiones_json'] : json_encode($data['exclusiones_json'] ?? array());
     
-    $entidadId     = strval($data['entidad_id'] ?? ($_SESSION['entidad_liquidacion_id'] ?? 'PROPIO'));
-    $entidadNombre = strval($data['entidad_nombre'] ?? ($_SESSION['entidad_liquidacion_nombre'] ?? 'Hernán Ocazionez y Cía S.A.S.'));
+    // Priorizar entidad activa en sesión si es una entidad externa específica
+    $sesionEntId = strval($_SESSION['entidad_liquidacion_id'] ?? '');
+    $sesionEntNom = strval($_SESSION['entidad_liquidacion_nombre'] ?? '');
+    
+    $entidadId     = strval($data['entidad_id'] ?? '');
+    $entidadNombre = strval($data['entidad_nombre'] ?? '');
+
+    if (!empty($sesionEntId) && $sesionEntId !== 'PROPIO' && ($entidadId === 'PROPIO' || empty($entidadId))) {
+        $entidadId = $sesionEntId;
+        $entidadNombre = !empty($sesionEntNom) ? $sesionEntNom : $entidadNombre;
+    }
+
+    if (empty($entidadId)) {
+        $entidadId = 'PROPIO';
+    }
+    if (empty($entidadNombre)) {
+        $entidadNombre = 'HERNÁN OCAZIONEZ Y CÍA S.A.S.';
+    }
+
+    // Si aún es 'PROPIO' o 'HERNÁN OCAZIONEZ', deducirla a partir de los exámenes/médicos incluidos
+    if ($entidadId === 'PROPIO' || $entidadNombre === 'HERNÁN OCAZIONEZ Y CÍA S.A.S.' || $entidadNombre === 'Hernán Ocazionez y Cía S.A.S.') {
+        $detArr = json_decode($detallesJson, true);
+        if (is_array($detArr)) {
+            $uniqueCeds = array();
+            foreach ($detArr as $sedeInfo) {
+                foreach ($sedeInfo['examenes'] ?? array() as $exItem) {
+                    $medCedEx = trim($exItem['medico_cedula'] ?? '');
+                    if (!empty($medCedEx)) {
+                        $uniqueCeds[$medCedEx] = true;
+                    }
+                }
+            }
+            $entsVista = array();
+            foreach (array_keys($uniqueCeds) as $medCedEx) {
+                $cleanCed = preg_replace('/[^0-9]/', '', $medCedEx);
+                $stMEnt = sqlsrv_query($con, "SELECT e.id, e.nombre FROM usuarios u LEFT JOIN maestro_entidades e ON u.entidad_id = e.id WHERE (u.cedula = ? OR u.cedula = ?) AND e.id IS NOT NULL", array($medCedEx, $cleanCed));
+                if ($stMEnt && ($rMEnt = sqlsrv_fetch_array($stMEnt, SQLSRV_FETCH_ASSOC))) {
+                    if (!empty($rMEnt['nombre'])) {
+                        $entsVista[$rMEnt['nombre']] = strval($rMEnt['id']);
+                    }
+                }
+            }
+            if (count($entsVista) === 1) {
+                $entidadNombre = key($entsVista);
+                $entidadId = current($entsVista);
+            }
+        }
+    }
+
+    // Normalizar nombre de la entidad consultando maestro_entidades si es un ID numérico
+    if (is_numeric($entidadId) && intval($entidadId) > 0) {
+        $stEntCheck = sqlsrv_query($con, "SELECT id, nombre FROM maestro_entidades WHERE id = ?", array(intval($entidadId)));
+        if ($stEntCheck && ($rEnt = sqlsrv_fetch_array($stEntCheck, SQLSRV_FETCH_ASSOC))) {
+            $entidadNombre = $rEnt['nombre'];
+        }
+    }
 
     $novedadesJson = is_string($data['novedades_json'] ?? '') ? $data['novedades_json'] : (is_array($data['novedades_json'] ?? null) ? json_encode($data['novedades_json'], JSON_UNESCAPED_UNICODE) : null);
     $totalNovAdicion = floatval($data['total_novedades_adicion'] ?? 0);
@@ -549,6 +633,23 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
             }
         }
 
+        // Generar y persistir huella digital SHA-256 desde la creación
+        $payloadHash = json_encode(array(
+            'id'                       => $newId,
+            'periodo_desde'            => $periodoDesde,
+            'periodo_hasta'            => $periodoHasta,
+            'medico_cedula'            => $medicoCedula,
+            'medico_nombre'            => $medicoNombre,
+            'total_factura'            => $totalFactura,
+            'total_deducciones'        => $totalDeducciones,
+            'total_a_pagar'            => $totalAPagar,
+            'usuario_creador_nombre'   => $usuarioNombre,
+            'usuario_aprobador_nombre' => null,
+            'detalles_json'            => $detallesJson
+        ), JSON_UNESCAPED_UNICODE);
+        $hashCreacion = hash('sha256', $payloadHash);
+        @sqlsrv_query($con, "UPDATE liquidaciones_turnos SET hash_integridad = ? WHERE id = ?", array($hashCreacion, $newId));
+
         // Registrar Log de Creación en tabla unificada (Sin envío de correo; solo se notifica al ser APROBADA)
         $obsLog = 'Liquidación registrada y enviada a revisión';
         if ($cantExcluidos > 0) {
@@ -557,7 +658,7 @@ function guardarLiquidacionBD($data, $usuarioId, $usuarioNombre, $usuarioRol) {
         if ($totalNovNeto != 0) {
             $obsLog .= " [Novedades: " . ($totalNovNeto > 0 ? '+' : '') . "$" . number_format($totalNovNeto, 0, ',', '.') . " COP]";
         }
-        registrarLogLiquidacionBD($newId, 'CREACIÓN', null, 'PENDIENTE', $usuarioId, $usuarioNombre, $usuarioRol, $obsLog);
+        registrarLogLiquidacionBD($newId, 'CREACIÓN', null, 'PENDIENTE', $usuarioId, $usuarioNombre, $usuarioRol, $obsLog, $hashCreacion);
 
         return array('success' => true, 'id' => $newId, 'excluidos_count' => $cantExcluidos);
     }
@@ -789,6 +890,7 @@ function obtenerLiquidacionesBD($filtros = array()) {
                    ded_solidaridad_pct, ded_solidaridad,
                    total_deducciones, total_a_pagar, estado, fecha_creacion, usuario_creador_nombre,
                    usuario_aprobador_id, usuario_aprobador_nombre, fecha_aprobacion, hash_integridad,
+                   entidad_id, entidad_nombre,
                    novedades_json, total_novedades_adicion, total_novedades_deduccion, total_novedades_neto
             FROM liquidaciones_turnos
             WHERE $whereStr
@@ -826,6 +928,67 @@ function obtenerLiquidacionesBD($filtros = array()) {
             $row['ajustes_aprobados'] = $ajusteInfo ? floatval($ajusteInfo['total_ajustes_aprobados']) : 0;
             $row['ajustes_pendientes'] = $ajusteInfo ? floatval($ajusteInfo['total_ajustes_pendientes']) : 0;
             $row['total_ajustado_aprobado'] = floatval($row['total_a_pagar']) + $row['ajustes_aprobados'];
+
+            // Resolución inteligente de la Entidad Real si figura como PROPIO / HERNÁN OCAZIONEZ
+            $entNomActual = strtoupper(trim((string)($row['entidad_nombre'] ?? '')));
+            $entIdActual  = strtoupper(trim((string)($row['entidad_id'] ?? '')));
+            if ($entIdActual === 'PROPIO' || empty($entIdActual) || strpos($entNomActual, 'HERN') !== false || strpos($entNomActual, 'OCAZIONEZ') !== false) {
+                $isGlobalRow = (
+                    strpos(strtoupper($row['medico_cedula'] ?? ''), 'GLOBAL') !== false ||
+                    strpos(strtoupper($row['medico_nombre'] ?? ''), 'GLOBAL') !== false ||
+                    strpos(strtoupper($row['medico_nombre'] ?? ''), 'TODOS') !== false
+                );
+                
+                $entidadResueltaId = null;
+                $entidadResueltaNombre = null;
+
+                if (!$isGlobalRow && !empty($row['medico_cedula'])) {
+                    $cleanCed = preg_replace('/[^0-9]/', '', $row['medico_cedula']);
+                    $stDoc = sqlsrv_query($con, "SELECT e.id, e.nombre FROM usuarios u LEFT JOIN maestro_entidades e ON u.entidad_id = e.id WHERE (u.cedula = ? OR u.cedula = ?) AND e.id IS NOT NULL", array($row['medico_cedula'], $cleanCed));
+                    if ($stDoc && ($rD = sqlsrv_fetch_array($stDoc, SQLSRV_FETCH_ASSOC))) {
+                        if (!empty($rD['nombre'])) {
+                            $entidadResueltaId = $rD['id'];
+                            $entidadResueltaNombre = $rD['nombre'];
+                        }
+                    }
+                } else if ($isGlobalRow) {
+                    $stDet = sqlsrv_query($con, "SELECT detalles_json FROM liquidaciones_turnos WHERE id = ?", array($lId));
+                    if ($stDet && ($rDet = sqlsrv_fetch_array($stDet, SQLSRV_FETCH_ASSOC))) {
+                        $detParsed = json_decode($rDet['detalles_json'] ?? '', true);
+                        if (is_array($detParsed)) {
+                            $uniqueMedCeds = array();
+                            foreach ($detParsed as $sInfo) {
+                                foreach ($sInfo['examenes'] ?? array() as $ex) {
+                                    $mCed = trim((string)($ex['medico_cedula'] ?? ''));
+                                    if (!empty($mCed)) {
+                                        $uniqueMedCeds[$mCed] = true;
+                                    }
+                                }
+                            }
+                            $entsVista = array();
+                            foreach (array_keys($uniqueMedCeds) as $mCed) {
+                                $cleanMCed = preg_replace('/[^0-9]/', '', $mCed);
+                                $stMEnt = sqlsrv_query($con, "SELECT e.id, e.nombre FROM usuarios u LEFT JOIN maestro_entidades e ON u.entidad_id = e.id WHERE (u.cedula = ? OR u.cedula = ?) AND e.id IS NOT NULL", array($mCed, $cleanMCed));
+                                if ($stMEnt && ($rME = sqlsrv_fetch_array($stMEnt, SQLSRV_FETCH_ASSOC))) {
+                                    if (!empty($rME['nombre'])) {
+                                        $entsVista[$rME['nombre']] = $rME['id'];
+                                    }
+                                }
+                            }
+                            if (count($entsVista) === 1) {
+                                $entidadResueltaNombre = key($entsVista);
+                                $entidadResueltaId = current($entsVista);
+                            }
+                        }
+                    }
+                }
+
+                if (!empty($entidadResueltaNombre) && !empty($entidadResueltaId)) {
+                    $row['entidad_id'] = $entidadResueltaId;
+                    $row['entidad_nombre'] = $entidadResueltaNombre;
+                    @sqlsrv_query($con, "UPDATE liquidaciones_turnos SET entidad_id = ?, entidad_nombre = ? WHERE id = ?", array($entidadResueltaId, $entidadResueltaNombre, $lId));
+                }
+            }
 
             $list[] = $row;
         }
@@ -865,8 +1028,8 @@ function obtenerLiquidacionPorIdBD($id, $incluirDetallesCompletos = false) {
             $row['fecha_aprobacion'] = $row['fecha_aprobacion']->format('Y-m-d H:i:s');
         }
 
-        // Si es un registro previo sin resumen_sedes_json, o que no tiene desagregado el bono de tomografía, generarlo en caliente y guardarlo
-        $necesitaRegenerar = empty($row['resumen_sedes_json']);
+        // Si es un registro previo sin resumen_sedes_json, o que tiene conceptos vacíos [] teniendo exámenes, o sin bonificaciones de tomografía, regenerarlo
+        $necesitaRegenerar = empty($row['resumen_sedes_json']) || (strpos($row['resumen_sedes_json'], '"conceptos":[]') !== false);
         if (!$necesitaRegenerar && strpos($row['resumen_sedes_json'], 'BONI') === false) {
             $stmtFullCheck = sqlsrv_query($con, "SELECT detalles_json FROM liquidaciones_turnos WHERE id = ?", array($id));
             if ($stmtFullCheck && ($rowFullCheck = sqlsrv_fetch_array($stmtFullCheck, SQLSRV_FETCH_ASSOC))) {
@@ -894,6 +1057,26 @@ function obtenerLiquidacionPorIdBD($id, $incluirDetallesCompletos = false) {
             strpos(strtoupper($row['medico_nombre'] ?? ''), 'TODOS') !== false
         );
 
+        if (!$isGlobal && !empty($row['medico_cedula'])) {
+            $cleanCed = preg_replace('/[^0-9]/', '', $row['medico_cedula']);
+            $stmtDocEnt = sqlsrv_query($con, "SELECT e.id, e.nombre, e.nit 
+                                               FROM usuarios u 
+                                               LEFT JOIN maestro_entidades e ON u.entidad_id = e.id 
+                                               WHERE u.cedula = ? OR u.cedula = ?", array($row['medico_cedula'], $cleanCed));
+            if ($stmtDocEnt && ($rDE = sqlsrv_fetch_array($stmtDocEnt, SQLSRV_FETCH_ASSOC))) {
+                if (!empty($rDE['nombre'])) {
+                    $row['medico_entidad_id'] = $rDE['id'];
+                    $row['medico_entidad_nombre'] = $rDE['nombre'];
+                    $row['medico_entidad_nit'] = $rDE['nit'];
+                    if (empty($row['entidad_nombre']) || $row['entidad_nombre'] === 'HERNÁN OCAZIONEZ Y CÍA S.A.S.' || $row['entidad_id'] === 'PROPIO') {
+                        $row['entidad_nombre'] = $rDE['nombre'];
+                        $row['entidad_id'] = $rDE['id'];
+                        @sqlsrv_query($con, "UPDATE liquidaciones_turnos SET entidad_id = ?, entidad_nombre = ? WHERE id = ?", array($row['entidad_id'], $row['entidad_nombre'], $id));
+                    }
+                }
+            }
+        }
+
         if ($isGlobal) {
             $detallesRaw = $row['detalles_json'] ?? '';
             if (empty($detallesRaw)) {
@@ -905,9 +1088,40 @@ function obtenerLiquidacionPorIdBD($id, $incluirDetallesCompletos = false) {
                     }
                 }
             }
-            $row['desglose_medicos'] = generarDesgloseMedicosJSON($detallesRaw);
+            $desgloseMedicos = generarDesgloseMedicosJSON($detallesRaw);
+            $entidadesMedicosVistas = array();
+            foreach ($desgloseMedicos as &$mItem) {
+                if (!empty($mItem['cedula'])) {
+                    $cleanMCed = preg_replace('/[^0-9]/', '', $mItem['cedula']);
+                    $stmtMEnt = sqlsrv_query($con, "SELECT e.id, e.nombre, e.nit 
+                                                    FROM usuarios u 
+                                                    LEFT JOIN maestro_entidades e ON u.entidad_id = e.id 
+                                                    WHERE u.cedula = ? OR u.cedula = ?", array($mItem['cedula'], $cleanMCed));
+                    if ($stmtMEnt && ($rME = sqlsrv_fetch_array($stmtMEnt, SQLSRV_FETCH_ASSOC))) {
+                        if (!empty($rME['nombre'])) {
+                            $mItem['entidad_id'] = $rME['id'];
+                            $mItem['entidad_nombre'] = $rME['nombre'];
+                            $mItem['entidad_nit'] = $rME['nit'];
+                            $entidadesMedicosVistas[$rME['nombre']] = $rME['id'];
+                        }
+                    }
+                }
+            }
+            unset($mItem);
+            $row['desglose_medicos'] = $desgloseMedicos;
+
+            // Si todos los médicos de la liquidación pertenecen a una misma entidad y la actual es por defecto, reflejarla
+            if (count($entidadesMedicosVistas) === 1 && (empty($row['entidad_nombre']) || $row['entidad_nombre'] === 'HERNÁN OCAZIONEZ Y CÍA S.A.S.' || $row['entidad_id'] === 'PROPIO')) {
+                $row['entidad_nombre'] = key($entidadesMedicosVistas);
+                $row['entidad_id'] = current($entidadesMedicosVistas);
+                @sqlsrv_query($con, "UPDATE liquidaciones_turnos SET entidad_id = ?, entidad_nombre = ? WHERE id = ?", array($row['entidad_id'], $row['entidad_nombre'], $id));
+            }
         } else {
             $row['desglose_medicos'] = array();
+        }
+
+        if (empty($row['hash_integridad']) || $row['hash_integridad'] === 'GENERADO_AL_APROBAR') {
+            $row['hash_integridad'] = obtenerOCalcularHashLiquidacion($row);
         }
 
         $row['exclusiones'] = obtenerExclusionesPorLiquidacionIdBD($id, $row['exclusiones_json'] ?? '');
@@ -1162,6 +1376,52 @@ function obtenerLogsLiquidacionBD($liquidacionId) {
     }
 
     return $logs;
+}
+
+/**
+ * Calcula o recupera la huella criptográfica SHA-256 inmutable de una liquidación
+ * y la persiste en la base de datos si aún no existía.
+ */
+function obtenerOCalcularHashLiquidacion($liqOrId) {
+    if (is_array($liqOrId)) {
+        $liq = $liqOrId;
+        $id = intval($liq['id'] ?? 0);
+    } else {
+        $id = intval($liqOrId);
+        $liq = obtenerLiquidacionPorIdBD($id, false);
+    }
+
+    if (!$liq) return hash('sha256', 'LIQ_EMPTY_' . $id);
+
+    $hashExistente = trim($liq['hash_integridad'] ?? '');
+    if (!empty($hashExistente) && $hashExistente !== 'GENERADO_AL_APROBAR') {
+        return $hashExistente;
+    }
+
+    $payloadRaw = json_encode(array(
+        'id'                       => $liq['id'],
+        'periodo_desde'            => $liq['periodo_desde'] ?? '',
+        'periodo_hasta'            => $liq['periodo_hasta'] ?? '',
+        'medico_cedula'            => $liq['medico_cedula'] ?? '',
+        'medico_nombre'            => $liq['medico_nombre'] ?? '',
+        'total_factura'            => floatval($liq['total_factura'] ?? 0),
+        'total_deducciones'        => floatval($liq['total_deducciones'] ?? 0),
+        'total_a_pagar'            => floatval($liq['total_a_pagar'] ?? 0),
+        'usuario_creador_nombre'   => $liq['usuario_creador_nombre'] ?? '',
+        'usuario_aprobador_nombre' => $liq['usuario_aprobador_nombre'] ?? '',
+        'detalles_json'            => $liq['detalles_json'] ?? ''
+    ), JSON_UNESCAPED_UNICODE);
+
+    $nuevoHash = hash('sha256', $payloadRaw);
+
+    if ($id > 0) {
+        $con = obtenerConexionLIHO();
+        if ($con !== false) {
+            sqlsrv_query($con, "UPDATE liquidaciones_turnos SET hash_integridad = ? WHERE id = ? AND (hash_integridad IS NULL OR hash_integridad = '' OR hash_integridad = 'GENERADO_AL_APROBAR')", array($nuevoHash, $id));
+        }
+    }
+
+    return $nuevoHash;
 }
 
 /**
@@ -1935,16 +2195,37 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
     $liq = $liqData ?: obtenerLiquidacionPorIdBD($liquidacionId, true);
     if (!$liq) return false;
 
-    // Configuración estricta de correos de desarrollo y pruebas
-    $correoMedicoPrueba = 'desarrollo@hernanocazionez.com';
-    $correoDirMedica    = 'coordinacionsistemas@hernanocazionez.com.co';
-    $correoCopiaDev     = 'juane6462@gmail.com';
-    $correoContabilidad = 'contabilidad2@hernanocazionez.com'; // Mary Luz Rios - Contabilidad
+    require_once __DIR__ . '/config_helper.php';
+    $esModoPruebas = estanCorreosMedicosBloqueados();
 
-    // Durante fase de desarrollo/pruebas se utiliza el médico de prueba
     $correoMedico = obtenerEmailMedicoPorCedula($liq['medico_cedula']);
-    $destinatarioPrincipal = (strtolower(trim($correoMedico ?? '')) === 'desarrollo@hernanocazionez.com') ? $correoMedico : $correoMedicoPrueba;
-    $copiasCC = array($correoDirMedica, $correoCopiaDev, $correoContabilidad);
+    $correosDirMedica = array(
+        'coordinacionsistemas@hernanocazionez.com.co',
+        'dirasistencial@hernanocazionez.com'
+    );
+    $correoContabilidad = 'contabilidad2@hernanocazionez.com';
+
+    if ($esModoPruebas) {
+        $destinatarioPrincipal = 'juane6462@gmail.com';
+        $copiasCC = array_merge($correosDirMedica, array($correoContabilidad));
+    } else {
+        $destinatarioPrincipal = (!empty($correoMedico) && filter_var($correoMedico, FILTER_VALIDATE_EMAIL)) ? strtolower(trim($correoMedico)) : null;
+        $copiasCC = array_merge($correosDirMedica, array($correoContabilidad));
+    }
+
+    // Exclusiones estrictas
+    $correosExcluidos = array('desarrollo@hernanocazionez.com');
+    if (!$esModoPruebas) {
+        $correosExcluidos[] = 'juane6462@gmail.com';
+    }
+
+    if (empty($destinatarioPrincipal) || in_array($destinatarioPrincipal, $correosExcluidos)) {
+        $destinatarioPrincipal = $esModoPruebas ? 'juane6462@gmail.com' : ($copiasCC[0] ?? 'coordinacionsistemas@hernanocazionez.com.co');
+    }
+
+    $copiasCC = array_values(array_filter($copiasCC, function($c) use ($correosExcluidos, $destinatarioPrincipal) {
+        return !in_array($c, $correosExcluidos) && $c !== $destinatarioPrincipal;
+    }));
 
     $logoPath = __DIR__ . '/../assets/img/logo_fondo_osc_hd.png';
     if (!file_exists($logoPath)) $logoPath = __DIR__ . '/../assets/img/Logo fondo oscuro.png';
@@ -1957,7 +2238,7 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
     $totalAPagar = number_format(floatval($liq['total_a_pagar'] ?? 0), 2, ',', '.');
     $totalFactura = number_format(floatval($liq['total_factura'] ?? 0), 2, ',', '.');
     $totalDeducciones = number_format(floatval($liq['total_deducciones'] ?? 0), 2, ',', '.');
-    $hashIntegridad = htmlspecialchars($liq['hash_integridad'] ?? 'PENDIENTE_GENERACION');
+    $hashIntegridad = htmlspecialchars(obtenerOCalcularHashLiquidacion($liq));
     $fechaEmision = date('d/m/Y h:i A');
 
     // Desglose de sedes para tabla HTML en correo
@@ -1985,7 +2266,7 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
 
     $ibc = floatval($liq['ded_ibc'] ?? 0);
     if ($ibc > 0) {
-        $dedList['IBC Mes (Estimado)'] = $ibc;
+        $dedList['AFC Mes (Estimado)'] = $ibc;
     }
 
     $salud = floatval($liq['ded_salud'] ?? 0);
@@ -2166,6 +2447,383 @@ function notificarLiquidacionPorCorreo($liquidacionId, $tipoEvento = 'APROBADA',
     );
 
     return $enviado;
+}
+
+/**
+ * Obtiene los destinatarios sugeridos para el reenvío de una liquidación:
+ * Médico, Dirección Médica y Usuario Creador.
+ */
+function obtenerDestinatariosReenvioLiquidacion($liquidacionId) {
+    $liq = obtenerLiquidacionPorIdBD($liquidacionId, false);
+    if (!$liq) return null;
+
+    require_once __DIR__ . '/config_helper.php';
+    $esModoPruebas = estanCorreosMedicosBloqueados();
+
+    $correoMedico = obtenerEmailMedicoPorCedula($liq['medico_cedula']);
+    $creadorId     = intval($liq['usuario_creador_id'] ?? 0);
+    $creadorNombre = trim($liq['usuario_creador_nombre'] ?? '');
+    $correoCreador = null;
+
+    $con = obtenerConexionLIHO();
+    if ($con !== false) {
+        if ($creadorId > 0) {
+            $stmtC = sqlsrv_query($con, "SELECT TOP 1 email, nombre_completo FROM usuarios WHERE id = ? AND email IS NOT NULL AND email <> ''", array($creadorId));
+            if ($stmtC && ($rC = sqlsrv_fetch_array($stmtC, SQLSRV_FETCH_ASSOC))) {
+                $correoCreador = trim($rC['email']);
+            }
+        }
+        if (empty($correoCreador) && !empty($creadorNombre)) {
+            $stmtC2 = sqlsrv_query($con, "SELECT TOP 1 email FROM usuarios WHERE LOWER(nombre_completo) = LOWER(?) AND email IS NOT NULL AND email <> ''", array($creadorNombre));
+            if ($stmtC2 && ($rC2 = sqlsrv_fetch_array($stmtC2, SQLSRV_FETCH_ASSOC))) {
+                $correoCreador = trim($rC2['email']);
+            }
+        }
+    }
+
+    if (empty($correoCreador) && (stripos($creadorNombre, 'Mary Luz') !== false || stripos($creadorNombre, 'Rios') !== false)) {
+        $correoCreador = 'contabilidad2@hernanocazionez.com';
+    }
+
+    // Regla de modo desarrollo/testeo:
+    // En modo pruebas: se envía al correo de pruebas juane6462@gmail.com (NUNCA a desarrollo@hernanocazionez.com)
+    // En modo producción: se envía al correo real del médico y NUNCA a correos del desarrollador.
+    $emailDestinoMedico = $esModoPruebas 
+        ? 'juane6462@gmail.com (Modo Pruebas Activo)' 
+        : ((!empty($correoMedico) && filter_var($correoMedico, FILTER_VALIDATE_EMAIL)) ? $correoMedico : 'No registrado');
+
+    return array(
+        'liquidacion_id' => $liquidacionId,
+        'modo_pruebas'   => $esModoPruebas,
+        'medico'         => array(
+            'nombre'     => $liq['medico_nombre'] ?? 'Profesional',
+            'cedula'     => $liq['medico_cedula'] ?? '',
+            'email'      => $emailDestinoMedico,
+            'email_real' => (!empty($correoMedico) && filter_var($correoMedico, FILTER_VALIDATE_EMAIL)) ? $correoMedico : 'Sin correo registrado'
+        ),
+        'dir_medica'     => array(
+            'nombre'     => 'Dirección Médica y Coordinación Asistencial',
+            'email'      => 'coordinacionsistemas@hernanocazionez.com.co, dirasistencial@hernanocazionez.com'
+        ),
+        'creador'        => array(
+            'id'         => $creadorId,
+            'nombre'     => $creadorNombre ?: 'Usuario Creador',
+            'email'      => $correoCreador ?: 'contabilidad2@hernanocazionez.com'
+        ),
+        'periodo'        => ($liq['periodo_desde'] ?? '') . ' al ' . ($liq['periodo_hasta'] ?? ''),
+        'total_factura'  => floatval($liq['total_factura'] ?? 0),
+        'total_a_pagar'  => floatval($liq['total_a_pagar'] ?? 0),
+        'estado'         => $liq['estado'] ?? 'PENDIENTE'
+    );
+}
+
+/**
+ * Reenvía formalmente una liquidación por correo electrónico a:
+ * 1. Dirección Médica (coordinacionsistemas@hernanocazionez.com.co / dirasistencial@hernanocazionez.com)
+ * 2. Médico titular
+ * 3. Usuario que creó la liquidación
+ * y registra la trazabilidad completa en sistema_auditoria_logs y dbo.logs_sistema
+ */
+function reenviarLiquidacionPorCorreo($liquidacionId, $usuarioAccionId, $usuarioAccionNombre, $usuarioAccionRol, $correosExtra = array()) {
+    $liq = obtenerLiquidacionPorIdBD($liquidacionId, true);
+    if (!$liq) {
+        return array('success' => false, 'error' => 'Liquidación no encontrada.');
+    }
+
+    require_once __DIR__ . '/config_helper.php';
+    $esModoPruebas = estanCorreosMedicosBloqueados();
+
+    // 1. Obtener correo del Médico
+    $correoMedico = obtenerEmailMedicoPorCedula($liq['medico_cedula']);
+    $medicoNombre = trim($liq['medico_nombre'] ?? 'Profesional');
+    $medicoCedula = trim($liq['medico_cedula'] ?? 'N/A');
+
+    // 2. Obtener correos de Dirección Médica
+    $correosDirMedica = array(
+        'coordinacionsistemas@hernanocazionez.com.co',
+        'dirasistencial@hernanocazionez.com'
+    );
+
+    // 3. Obtener correo de quien creó la liquidación
+    $creadorId     = intval($liq['usuario_creador_id'] ?? 0);
+    $creadorNombre = trim($liq['usuario_creador_nombre'] ?? '');
+    $correoCreador = null;
+
+    $con = obtenerConexionLIHO();
+    if ($con !== false) {
+        if ($creadorId > 0) {
+            $stmtC = sqlsrv_query($con, "SELECT TOP 1 email, nombre_completo FROM usuarios WHERE id = ? AND email IS NOT NULL AND email <> ''", array($creadorId));
+            if ($stmtC && ($rC = sqlsrv_fetch_array($stmtC, SQLSRV_FETCH_ASSOC))) {
+                $correoCreador = trim($rC['email']);
+            }
+        }
+        if (empty($correoCreador) && !empty($creadorNombre)) {
+            $stmtC2 = sqlsrv_query($con, "SELECT TOP 1 email FROM usuarios WHERE LOWER(nombre_completo) = LOWER(?) AND email IS NOT NULL AND email <> ''", array($creadorNombre));
+            if ($stmtC2 && ($rC2 = sqlsrv_fetch_array($stmtC2, SQLSRV_FETCH_ASSOC))) {
+                $correoCreador = trim($rC2['email']);
+            }
+        }
+    }
+
+    if (empty($correoCreador) && (stripos($creadorNombre, 'Mary Luz') !== false || stripos($creadorNombre, 'Rios') !== false)) {
+        $correoCreador = 'contabilidad2@hernanocazionez.com';
+    }
+
+    // Función de limpieza y validación de correos
+    $limpiarEmail = function($email) {
+        $e = strtolower(trim((string)$email));
+        return (!empty($e) && filter_var($e, FILTER_VALIDATE_EMAIL)) ? $e : null;
+    };
+
+    $emailMedicoValido = $limpiarEmail($correoMedico);
+    $emailCreadorValido = $limpiarEmail($correoCreador);
+
+    // Configuración estricta de destinatarios según modo de desarrollo/testeo
+    $copiasCC = array();
+
+    if ($esModoPruebas) {
+        // MODO PRUEBAS / TESTEO:
+        // - Destinatario principal de pruebas: juane6462@gmail.com
+        // - NUNCA enviar a desarrollo@hernanocazionez.com
+        $destinatarioPrincipal = 'juane6462@gmail.com';
+
+        foreach ($correosDirMedica as $cDir) {
+            $cClean = $limpiarEmail($cDir);
+            if ($cClean && $cClean !== $destinatarioPrincipal && !in_array($cClean, $copiasCC)) {
+                $copiasCC[] = $cClean;
+            }
+        }
+
+        if ($emailCreadorValido && $emailCreadorValido !== $destinatarioPrincipal && !in_array($emailCreadorValido, $copiasCC)) {
+            $copiasCC[] = $emailCreadorValido;
+        }
+
+        $copiasInst = array('contabilidad2@hernanocazionez.com');
+        foreach ($copiasInst as $cInst) {
+            $cClean = $limpiarEmail($cInst);
+            if ($cClean && $cClean !== $destinatarioPrincipal && !in_array($cClean, $copiasCC)) {
+                $copiasCC[] = $cClean;
+            }
+        }
+    } else {
+        // MODO PRODUCCIÓN (Cuando se desactive la opción de pruebas):
+        // - Enviar a quienes corresponda: Médico titular, Dirección Médica y Creador
+        // - NUNCA enviar a correos del desarrollador ('desarrollo@hernanocazionez.com' ni 'juane6462@gmail.com')
+        $destinatarioPrincipal = $emailMedicoValido;
+
+        foreach ($correosDirMedica as $cDir) {
+            $cClean = $limpiarEmail($cDir);
+            if ($cClean && $cClean !== $destinatarioPrincipal && !in_array($cClean, $copiasCC)) {
+                $copiasCC[] = $cClean;
+            }
+        }
+
+        if ($emailCreadorValido && $emailCreadorValido !== $destinatarioPrincipal && !in_array($emailCreadorValido, $copiasCC)) {
+            $copiasCC[] = $emailCreadorValido;
+        }
+    }
+
+    // Agregar correos extras opcionales especificados por el usuario
+    if (!empty($correosExtra)) {
+        $arrExtra = is_array($correosExtra) ? $correosExtra : explode(',', (string)$correosExtra);
+        foreach ($arrExtra as $ex) {
+            $eClean = $limpiarEmail($ex);
+            if ($eClean && $eClean !== $destinatarioPrincipal && !in_array($eClean, $copiasCC)) {
+                $copiasCC[] = $eClean;
+            }
+        }
+    }
+
+    // Filtro de exclusión:
+    // desarrollo@hernanocazionez.com NUNCA debe recibir correos.
+    // En modo producción, juane6462@gmail.com tampoco debe recibir correos.
+    $correosExcluidos = array('desarrollo@hernanocazionez.com');
+    if (!$esModoPruebas) {
+        $correosExcluidos[] = 'juane6462@gmail.com';
+    }
+
+    if (empty($destinatarioPrincipal) || in_array($destinatarioPrincipal, $correosExcluidos)) {
+        $destinatarioPrincipal = $esModoPruebas ? 'juane6462@gmail.com' : ($copiasCC[0] ?? 'coordinacionsistemas@hernanocazionez.com.co');
+    }
+
+    $copiasCC = array_values(array_filter($copiasCC, function($c) use ($correosExcluidos, $destinatarioPrincipal) {
+        return !in_array($c, $correosExcluidos) && $c !== $destinatarioPrincipal;
+    }));
+
+    // 4. Generar Reporte PDF Oficial y Consulta Detallada de Exámenes Excel
+    $safeMedico = preg_replace('/[^a-zA-Z0-9_-]/', '_', $liq['medico_nombre'] ?? 'MEDICO');
+    $nombrePdf = "Reporte_Liquidacion_{$liquidacionId}_{$safeMedico}.pdf";
+    $nombreExcel = "Consulta_Examenes_Liquidacion_{$liquidacionId}_{$safeMedico}.csv";
+
+    $pdfData = generarPDFLiquidacion($liq);
+    $excelData = generarExcelLiquidacion($liq);
+
+    $attachments = array();
+    if (!empty($pdfData)) {
+        $attachments[] = array('name' => $nombrePdf, 'data' => $pdfData, 'type' => 'application/pdf');
+    }
+    if (!empty($excelData)) {
+        $attachments[] = array('name' => $nombreExcel, 'data' => $excelData, 'type' => 'text/csv; charset=UTF-8');
+    }
+
+    // 5. Preparar correo HTML
+    $periodo = htmlspecialchars(($liq['periodo_desde'] ?? '') . ' al ' . ($liq['periodo_hasta'] ?? ''));
+    $totalAPagar = number_format(floatval($liq['total_a_pagar'] ?? 0), 2, ',', '.');
+    $totalFactura = number_format(floatval($liq['total_factura'] ?? 0), 2, ',', '.');
+    $totalDeducciones = number_format(floatval($liq['total_deducciones'] ?? 0), 2, ',', '.');
+    $hashIntegridad = htmlspecialchars(obtenerOCalcularHashLiquidacion($liq));
+    $fechaEmision = date('d/m/Y h:i A');
+
+    $asunto = "[LIHO] Reenvío de Liquidación de Honorarios Médicos #" . $liquidacionId . " - " . strtoupper($liq['estado'] ?? 'APROBADA');
+
+    $logoPath = __DIR__ . '/../assets/img/logo_fondo_osc_hd.png';
+    if (!file_exists($logoPath)) $logoPath = __DIR__ . '/../assets/img/Logo fondo oscuro.png';
+    if (!file_exists($logoPath)) $logoPath = __DIR__ . '/../assets/img/Ho_Fondo_Osc.png';
+    $embeddedImages = file_exists($logoPath) ? array('logo_liho' => $logoPath) : array();
+
+    $bodyHtml = '
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>[LIHO] Reenvío de Liquidación de Honorarios</title>
+        <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 16px 12px; color: #1e293b; }
+            .wrapper { width: 100%; max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.07); border: 1px solid #e2e8f0; }
+            .header { background: #0f172a; padding: 26px 20px 20px 20px; text-align: center; color: #ffffff; }
+            .header p { margin: 8px 0 0 0; font-size: 11px; color: #38bdf8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; }
+            .content { padding: 24px 20px; }
+            .badge-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
+            .badge-liq { font-size: 14px; font-weight: 900; color: #0f172a; }
+            .badge-reenvio { display: inline-block; padding: 4px 12px; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 999px; font-size: 10px; font-weight: 900; letter-spacing: 0.5px; }
+            .info-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; font-size: 11.5px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .info-row:last-child { margin-bottom: 0; font-weight: bold; border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 6px; }
+            .box-attachments { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 14px 16px; margin: 18px 0; }
+            .att-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #e2e8f0; font-size: 11.5px; }
+            .att-item:last-child { border-bottom: none; }
+            .att-tag { font-weight: 900; font-size: 10px; padding: 2px 6px; border-radius: 6px; }
+            .att-pdf { background: #e0f2fe; color: #0369a1; }
+            .att-xls { background: #dcfce7; color: #166534; }
+            .hash-card { background: #0f172a; border-radius: 12px; padding: 12px; margin: 16px 0; }
+            .hash-title { font-size: 9.5px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; display: block; }
+            .hash-code { font-family: Consolas, monospace; font-size: 9.5px; color: #38bdf8; word-break: break-all; overflow-wrap: anywhere; }
+            .footer { text-align: center; font-size: 10px; color: #94a3b8; padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; line-height: 1.5; }
+        </style>
+    </head>
+    <body>
+        <div class="wrapper">
+            <div class="header">
+                ' . (!empty($embeddedImages) ? '<img src="cid:logo_liho" alt="Hernán Ocazionez" style="max-width: 440px; width: 90%; height: auto; display: block; margin: 0 auto 10px auto;" />' : '') . '
+                <p>LIHO · REENVÍO DE LIQUIDACIÓN DE HONORARIOS</p>
+            </div>
+
+            <div class="content">
+                <div class="badge-bar">
+                    <span class="badge-liq">Liquidación #' . $liquidacionId . '</span>
+                    <span class="badge-reenvio">REENVÍO OFICIAL</span>
+                </div>
+
+                <p style="font-size: 13px; margin: 0 0 8px 0; color: #0f172a;">Apreciado(a) <strong>' . htmlspecialchars($medicoNombre) . '</strong> y Equipo Directivo,</p>
+                <p style="font-size: 12px; color: #475569; line-height: 1.5; margin: 0 0 16px 0;">
+                    Por medio del presente correo se reenvía formalmente el expediente de la liquidación de honorarios correspondiente al periodo <strong>' . $periodo . '</strong>.
+                </p>
+
+                <!-- Resumen Financiero -->
+                <div class="info-card">
+                    <div class="info-row"><span>Médico / Profesional:</span><span style="font-weight:700;">' . htmlspecialchars($medicoNombre) . '</span></div>
+                    <div class="info-row"><span>Total Factura:</span><span style="font-family:monospace;">$ ' . $totalFactura . '</span></div>
+                    <div class="info-row"><span>Total Deducciones:</span><span style="font-family:monospace; color:#e11d48;">- $ ' . $totalDeducciones . '</span></div>
+                    <div class="info-row" style="font-size:13px; color:#0f766e;"><span>Total Neto a Liquidar:</span><span style="font-family:monospace; font-weight:900;">$ ' . $totalAPagar . ' COP</span></div>
+                </div>
+
+                <!-- Documentos Adjuntos -->
+                <div class="box-attachments">
+                    <span style="font-size: 10px; font-weight: 800; color: #166534; text-transform: uppercase; display: block; margin-bottom: 8px;">Documentos Oficiales Adjuntos en este Reenvío:</span>
+                    
+                    <div class="att-item">
+                        <div>
+                            <span class="att-tag att-pdf">PDF</span>
+                            <span style="font-weight:700; color:#0f172a;">' . htmlspecialchars($nombrePdf) . '</span>
+                        </div>
+                        <span style="font-size: 10px; color: #64748b;">Reporte Oficial Completo</span>
+                    </div>
+
+                    <div class="att-item">
+                        <div>
+                            <span class="att-tag att-xls">EXCEL</span>
+                            <span style="font-weight:700; color:#0f172a;">' . htmlspecialchars($nombreExcel) . '</span>
+                        </div>
+                        <span style="font-size: 10px; color: #64748b;">Consulta Detallada de Exámenes</span>
+                    </div>
+                </div>
+
+                <!-- Firma Digital SHA-256 -->
+                <div class="hash-card">
+                    <span class="hash-title">FIRMA DIGITAL DE INTEGRIDAD CRIPTOGRÁFICA (SHA-256):</span>
+                    <div class="hash-code">' . $hashIntegridad . '</div>
+                </div>
+            </div>
+
+            <div class="footer">
+                Reenvío Registrado en Auditoría: ' . $fechaEmision . '<br>
+                © ' . date('Y') . ' IPS Hernán Ocazionez y Cía S.A.S. - Sistema LIHO
+            </div>
+        </div>
+    </body>
+    </html>
+    ';
+
+    // 6. Envío SMTP
+    $enviado = enviarCorreoSMTP($destinatarioPrincipal, $asunto, $bodyHtml, null, $embeddedImages, '', $copiasCC, $attachments);
+    $estadoStr = $enviado ? 'EXITOSO' : 'FALLIDO';
+
+    $todosDestinatarios = array_values(array_unique(array_merge(array($destinatarioPrincipal), $copiasCC)));
+    $todosDestinatariosStr = implode(', ', $todosDestinatarios);
+
+    // 7. REGISTRO OBLIGATORIO EN AUDITORÍA / LOGS DEL SISTEMA
+    registrarLogAuditoriaUniversal(
+        'CORREO',
+        $liquidacionId,
+        'LIQ-#' . $liquidacionId,
+        'REENVIO_CORREO_LIQUIDACION',
+        $liq['estado'] ?? 'APROBADA',
+        $liq['estado'] ?? 'APROBADA',
+        $usuarioAccionId,
+        $usuarioAccionNombre,
+        $usuarioAccionRol,
+        'Reenvío formal de liquidación #' . $liquidacionId . ' a Dirección Médica, Médico (' . $medicoNombre . ') y Creador (' . ($creadorNombre ?: 'Contabilidad') . '). Destinatarios: ' . $todosDestinatariosStr . ' [' . $estadoStr . ']',
+        array(
+            'evento'                 => 'REENVIO_CORREO_LIQUIDACION',
+            'liquidacion_id'         => $liquidacionId,
+            'destinatario_principal' => $destinatarioPrincipal,
+            'copias_cc'              => $copiasCC,
+            'todos_destinatarios'    => $todosDestinatarios,
+            'medico'                 => array('nombre' => $medicoNombre, 'cedula' => $medicoCedula, 'email' => $emailMedicoValido),
+            'dir_medica'             => $correosDirMedica,
+            'creador'                => array('id' => $creadorId, 'nombre' => $creadorNombre, 'email' => $correoCreador),
+            'solicitado_por'         => array('id' => $usuarioAccionId, 'nombre' => $usuarioAccionNombre, 'rol' => $usuarioAccionRol),
+            'adjuntos'               => array($nombrePdf, $nombreExcel),
+            'estado_envio'           => $estadoStr,
+            'fecha'                  => date('Y-m-d H:i:s')
+        ),
+        $estadoStr,
+        $hashIntegridad
+    );
+
+    return array(
+        'success'               => $enviado,
+        'estado'                => $estadoStr,
+        'destinatario_principal'=> $destinatarioPrincipal,
+        'copias_cc'             => $copiasCC,
+        'todos_destinatarios'   => $todosDestinatarios,
+        'medico_nombre'         => $medicoNombre,
+        'creador_nombre'        => $creadorNombre ?: 'Contabilidad',
+        'mensaje'               => $enviado 
+            ? 'Liquidación reenviada con éxito a ' . count($todosDestinatarios) . ' destinatario(s).'
+            : 'Ocurrió un error al enviar el correo por SMTP.'
+    );
 }
 
 /**

@@ -406,7 +406,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                     $kClean = $fueUpper . '_' . $ingClean;
 
                     $proteoKeysMap[$kExact] = true;
-                    $pairsByFuenteProteo[$fuente][] = $ingreso;
+                    $pairsByFuenteProteo[$fueUpper][] = $ingreso;
 
                     if (!isset($proteoByFueIngMap[$kExact])) {
                         $proteoByFueIngMap[$kExact] = [];
@@ -573,6 +573,8 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         $medicosEspecialesMap = [];
         $medicosDeglucionesMap = [];
         $medicosParafiscalesMap = [];
+        $medicosAfcMap = [];
+        $medicosIbcMap = [];
         $medicosPensionadosMap = [];
         $medicosArlMap = [];
         $porcentajesPagoMap = [
@@ -581,6 +583,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
         ];
         $modalidadesConfigMap = [];
         $parafiscalesConfigMap = [
+            'AFC'     => 40.0,
             'IBC'     => 40.0,
             'SALUD'   => 12.5,
             'PENSION' => 16.0,
@@ -835,6 +838,8 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                                  ISNULL(m.tarifas_especiales, ISNULL(u.tarifas_especiales, 0)) AS tarifas_especiales,
                                  ISNULL(m.degluciones, ISNULL(u.degluciones, 0)) AS degluciones,
                                  ISNULL(m.parafiscales, ISNULL(u.parafiscales, 0)) AS parafiscales,
+                                 ISNULL(m.afc, ISNULL(u.afc, ISNULL(m.ibc, ISNULL(u.ibc, 0)))) AS afc,
+                                 ISNULL(m.ibc, ISNULL(u.ibc, ISNULL(m.afc, ISNULL(u.afc, 0)))) AS ibc,
                                  ISNULL(m.pensionado, ISNULL(u.pensionado, 0)) AS pensionado,
                                  ISNULL(m.arl, ISNULL(u.arl, 0)) AS arl,
                                  ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales
@@ -850,6 +855,8 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                     $isEsp  = ((int)($rME['tarifas_especiales'] ?? 0) === 1);
                     $isDeg  = ((int)($rME['degluciones'] ?? 0) === 1);
                     $isPara = ((int)($rME['parafiscales'] ?? 0) === 1);
+                    $isAfc  = ((int)($rME['afc'] ?? 0) === 1 || (int)($rME['ibc'] ?? 0) === 1);
+            $isIbc  = $isAfc;
                     $isPen  = ((int)($rME['pensionado'] ?? 0) === 1);
                     $isArl  = ((int)($rME['arl'] ?? 0) === 1);
 
@@ -888,6 +895,11 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                         if (!empty($pUser)) $medicosParafiscalesMap[$pUser] = true;
                         if (!empty($ced))   $medicosParafiscalesMap[$ced] = true;
                         if (!empty($nom))   $medicosParafiscalesMap[$nom] = true;
+                    }
+                    if ($isAfc || $isIbc) {
+                        if (!empty($pUser)) { $medicosAfcMap[$pUser] = true; $medicosIbcMap[$pUser] = true; }
+                        if (!empty($ced))   { $medicosAfcMap[$ced] = true; $medicosIbcMap[$ced] = true; }
+                        if (!empty($nom))   { $medicosAfcMap[$nom] = true; $medicosIbcMap[$nom] = true; }
                     }
                     if ($isPen) {
                         if (!empty($pUser)) $medicosPensionadosMap[$pUser] = true;
@@ -1190,12 +1202,9 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 $keyExact = $pFue . '_' . $pIng;
                 $keyClean = $pFue . '_' . $pIngClean;
 
-                $candidateIndices = [];
-                if (isset($servinteByFueIng[$keyExact]) && !empty($servinteByFueIng[$keyExact])) {
-                    $candidateIndices = $servinteByFueIng[$keyExact];
-                } elseif (isset($servinteByFueIng[$keyClean]) && !empty($servinteByFueIng[$keyClean])) {
-                    $candidateIndices = $servinteByFueIng[$keyClean];
-                }
+                $candExact = $servinteByFueIng[$keyExact] ?? [];
+                $candClean = $servinteByFueIng[$keyClean] ?? [];
+                $candidateIndices = array_values(array_unique(array_merge($candExact, $candClean)));
 
                 $pCupsCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsCode($pItem['cups']));
                 $pCupsSec  = preg_replace('/[^A-Z0-9]/', '', $extractCupsSecondaryCode($pItem['cups']));
@@ -1259,10 +1268,24 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                         $pItem['servinte_total_ingreso'] = array_sum(array_column($sRowsForIngreso, 'total'));
                         $pItem['servinte_items']         = $sRowsForIngreso;
                     } else {
-                        $pItem['cruce']              = 'SOLO_PROTEO';
-                        $pItem['discrepancia']       = 'No Cruzado: Existen facturas en Servinte para Fuente (' . $pItem['fuente'] . ') e Ingreso (' . $pItem['ingreso'] . '), pero el código CUPS no coincide (Proteo: ' . $pItem['cups'] . ')';
-                        $pItem['servinte']           = null;
-                        $pItem['servinte_unmatched'] = $servinteItemsList[$candidateIndices[0]];
+                        $pItem['cruce']        = 'SOLO_PROTEO';
+                        $pItem['discrepancia'] = 'No Cruzado: Existen facturas en Servinte para Fuente (' . $pItem['fuente'] . ') e Ingreso (' . $pItem['ingreso'] . '), pero el código CUPS no coincide (Proteo: ' . $pItem['cups'] . ')';
+                        $pItem['servinte']     = null;
+
+                        // Solo asociar servinte_unmatched si existe coincidencia de código secundario o afín, NUNCA si son estudios totalmente diferentes
+                        $matchedUnmatched = null;
+                        foreach ($candidateIndices as $cIdx) {
+                            $sc = $servinteItemsList[$cIdx];
+                            $scCod = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sc['codigo_examen'] ?? ''))));
+                            $scSec = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sc['examen_sec'] ?? ''))));
+                            if ((!empty($pCupsCode) && !empty($scSec) && $pCupsCode === $scSec) ||
+                                (!empty($pCupsSec) && !empty($scCod) && $pCupsSec === $scCod) ||
+                                (!empty($pCupsSec) && !empty($scSec) && $pCupsSec === $scSec)) {
+                                $matchedUnmatched = $sc;
+                                break;
+                            }
+                        }
+                        $pItem['servinte_unmatched'] = $matchedUnmatched;
                     }
                 } else {
                     $pItem['cruce']              = 'SOLO_PROTEO';
@@ -1290,7 +1313,7 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
             // Base de cálculo: VALOR_EXAMEN toma el valor unitario de Servinte ($valorUndServinte), VALOR_LIQUIDACION toma la tarifa de LIHO
             $valorBaseCalculo = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
             // Pagar por cantidad: si es 1 (Sí) multiplica por la cantidad de Servinte, si es 0 (No) paga valor unitario fijo sin multiplicar
-            $valorAPagar      = ($pagarPorCantidad === 1) ? ($valorBaseCalculo * $cantItem) : $valorBaseCalculo;
+            $valorAPagar      = ($pagarPorCantidad != 0) ? ($valorBaseCalculo * $cantItem) : $valorBaseCalculo;
 
             $pItem['tipo_paciente']       = $tipoPacItem;
             $pItem['valor_und_tarifario'] = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
@@ -1504,14 +1527,69 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
             $records[] = $pItem;
         }
 
-        // --- D. PROCESAR REGISTROS QUE EXISTEN SOLO EN SERVINTE (SIN MATCH DE EVENTO Y CUPS EN PROTEO) ---
+        // --- D. PROCESAR REGISTROS QUE EXISTEN SOLO EN SERVINTE (SIN MATCH PREVIO EN PROTEO) ---
+        // 1. Recolectar ingresos no cruzados de Servinte para verificación global en Proteo
+        $unmatchedIngresosList = [];
+        foreach ($servinteItemsList as $sCand) {
+            if (!$sCand['matched'] && !empty($sCand['ingreso'])) {
+                $unmatchedIngresosList[] = trim((string)$sCand['ingreso']);
+            }
+        }
+        $unmatchedIngresosList = array_unique(array_filter($unmatchedIngresosList));
+
+        // Consulta global en Proteo para verificar estado real de los ingresos (si pertenecen a otro médico o no están finalizados)
+        $globalProteoEventsMap = [];
+        if (!empty($unmatchedIngresosList)) {
+            $chunksUnmatched = array_chunk($unmatchedIngresosList, 300);
+            foreach ($chunksUnmatched as $uChunk) {
+                $inClauseUnmatched = "'" . implode("','", array_map('addslashes', $uChunk)) . "'";
+                $sqlGP = "
+                SELECT 
+                    AE.Id AS Evento_Id,
+                    AE.EventStatusName,
+                    U.UserName AS Usuario_Medico,
+                    CONCAT(U.Name, ' ', U.Surname) AS Medico_Usuario,
+                    VIS.Value AS Ingreso,
+                    FUEN.Value AS Fuente,
+                    CUP.Value AS CUPS
+                FROM dbo.AppEvents AE WITH (NOLOCK)
+                INNER JOIN dbo.AbpUsers U WITH (NOLOCK) ON AE.LastModifierUserId = U.Id
+                OUTER APPLY (SELECT TOP 1 Value FROM dbo.AppEventDynamicDetails WITH (NOLOCK) WHERE EventId = AE.Id AND [Key] = 'VisitSource') FUEN
+                OUTER APPLY (SELECT TOP 1 Value FROM dbo.AppEventDynamicDetails WITH (NOLOCK) WHERE EventId = AE.Id AND [Key] = 'VisitId') VIS
+                OUTER APPLY (SELECT * FROM (SELECT DISTINCT Value FROM dbo.AppEventDynamicDetails WITH (NOLOCK) WHERE EventId = AE.Id AND [Key] = 'CUPS') C) CUP
+                WHERE VIS.Value IN ($inClauseUnmatched)
+                  AND AE.IsDeleted = 0
+                ";
+                $stGP = sqlsrv_query($connProteo, $sqlGP);
+                if ($stGP) {
+                    while ($rg = sqlsrv_fetch_array($stGP, SQLSRV_FETCH_ASSOC)) {
+                        $gIng = trim((string)$rg['Ingreso']);
+                        $gCupsRaw = trim((string)$rg['CUPS']);
+                        $gCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsCode($gCupsRaw));
+                        $gSecCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsSecondaryCode($gCupsRaw));
+                        $gMedUser = strtoupper(trim((string)$rg['Usuario_Medico']));
+                        $gStatus = trim((string)$rg['EventStatusName']);
+                        $eventData = [
+                            'evento_id'      => $rg['Evento_Id'],
+                            'status'         => $gStatus,
+                            'usuario_medico' => $gMedUser,
+                            'medico'         => $rg['Medico_Usuario'],
+                            'cups'           => $gCupsRaw,
+                            'is_finalizado'  => in_array($gStatus, ['Finalizado lectura WL', 'Finalizar ECO', 'Finalizado imagen rechazada', 'Enviado a Enfermeria'])
+                        ];
+                        if (!empty($gCode)) {
+                            $globalProteoEventsMap[$gIng][$gCode][] = $eventData;
+                        }
+                        if (!empty($gSecCode) && $gSecCode !== $gCode) {
+                            $globalProteoEventsMap[$gIng][$gSecCode][] = $eventData;
+                        }
+                    }
+                }
+            }
+        }
+
         foreach ($servinteItemsList as $sItemData) {
             if (!$sItemData['matched']) {
-                // Si hay filtro por médico activo, omitir registros de Solo Servinte (sin lectura en Proteo)
-                if (!empty($medicoFiltro)) {
-                    continue;
-                }
-
                 $sFue      = strtoupper(trim((string)$sItemData['fuente']));
                 $sIng      = trim((string)$sItemData['ingreso']);
                 $sIngClean = ltrim($sIng, '0');
@@ -1520,122 +1598,276 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
                 $kExact = $sFue . '_' . $sIng;
                 $kClean = $sFue . '_' . $sIngClean;
 
-                $proteoCandidates = [];
-                if (isset($proteoByFueIngMap[$kExact]) && !empty($proteoByFueIngMap[$kExact])) {
-                    $proteoCandidates = $proteoByFueIngMap[$kExact];
-                } elseif (isset($proteoByFueIngMap[$kClean]) && !empty($proteoByFueIngMap[$kClean])) {
-                    $proteoCandidates = $proteoByFueIngMap[$kClean];
-                }
+                $candExact = $proteoByFueIngMap[$kExact] ?? [];
+                $candClean = $proteoByFueIngMap[$kClean] ?? [];
+                $proteoCandidates = array_merge($candExact, $candClean);
 
-                $proteoUnmatched = !empty($proteoCandidates) ? $proteoCandidates[0] : null;
+                // 1. Verificación de Seguridad Estricta: ¿Existe en Proteo un registro con el MISMO código CUPS para este Ingreso?
+                $sCodClean = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sItemData['codigo_examen'] ?? ''))));
+                $sSecClean = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sItemData['examen_sec'] ?? ''))));
 
-                $itemCounter++;
-                $discrepanciaTxt = !empty($proteoUnmatched)
-                    ? 'Facturado en Servinte (Fuente: ' . $sItemData['fuente'] . ', Ingreso: ' . $sItemData['ingreso'] . ', CUPS: ' . $sItemData['codigo_examen'] . '). Existe registro en Proteo con CUPS diferente (Proteo: ' . ($proteoUnmatched['cups'] ?? '') . ')'
-                    : 'Facturado en Servinte (Fuente: ' . $sItemData['fuente'] . ', Ingreso: ' . $sItemData['ingreso'] . ', CUPS: ' . $sItemData['codigo_examen'] . ') sin lectura coincidente en Proteo';
+                $matchingProteoCand = null;
+                $candidateDiferenteCups = null;
 
-                $sItem = [
-                    'origen'           => 'SERVINTE',
-                    'id'               => 'SERV-' . $sItemData['fuente'] . '-' . $sItemData['ingreso'] . '-' . $sItemData['codigo_examen'],
-                    'unique_id'        => 'SERV_' . $sItemData['fuente'] . '_' . $sItemData['ingreso'] . '_' . $itemCounter,
-                    'documento'        => $sItemData['identificacion'],
-                    'nombre'           => $sItemData['paciente'],
-                    'fecha'            => $sItemData['fecha'],
-                    'fuente'           => $sItemData['fuente'],
-                    'ingreso'          => $sItemData['ingreso'],
-                    'cups'             => $sItemData['codigo_examen'] . ' - ' . $sItemData['examen'],
-                    'modalidad'        => 'SERVINTE',
-                    'estado_actual'    => 'Facturado en Servinte',
-                    'sede'             => $sItemData['sede'],
-                    'usuario'          => !empty($proteoUnmatched) ? $proteoUnmatched['usuario'] : 'Sin Lectura en Proteo',
-                    'usuario_medico'   => !empty($proteoUnmatched) ? $proteoUnmatched['usuario_medico'] : 'N/A',
-                    'tipo_paciente'    => $sItemData['tipo_paciente'] ?? 'E',
-                    'servinte'         => $sItemData,
-                    'servinte_total_ingreso' => $sItemData['total'],
-                    'servinte_items'    => [$sItemData],
-                    'proteo_unmatched' => $proteoUnmatched,
-                    'cruce'            => 'SOLO_SERVINTE',
-                    'discrepancia'     => $discrepanciaTxt
-                ];
+                foreach ($proteoCandidates as $pCand) {
+                    $pCode = preg_replace('/[^A-Z0-9]/', '', $extractCupsCode($pCand['cups'] ?? ''));
+                    $pSec  = preg_replace('/[^A-Z0-9]/', '', $extractCupsSecondaryCode($pCand['cups'] ?? ''));
 
-                $cupsCodeServinte   = $sItemData['codigo_examen'] ?? '';
-                $tipoPacItem        = $sItemData['tipo_paciente'] ?? 'E';
-                $cantItem           = (float)($sItemData['cantidad'] ?? 1);
-                if ($cantItem <= 0) $cantItem = 1;
-                $valorTotalServinte = (float)($sItemData['total'] ?? 0);
-                $valorUndServinte   = ($cantItem > 0 && $valorTotalServinte > 0) ? ($valorTotalServinte / $cantItem) : $valorTotalServinte;
-
-                $tarifaInfo       = $obtenerTarifa($sItem['cups'], $tipoPacItem, $cupsCodeServinte, $sItem['usuario_medico'] ?? '', $sItem['usuario'] ?? '', $valorUndServinte);
-                $valUndTarifa     = is_array($tarifaInfo) ? (float)($tarifaInfo['valor_und'] ?? 0) : (float)$tarifaInfo;
-                $pagarPorCantidad = is_array($tarifaInfo) ? (int)($tarifaInfo['pagar_por_cantidad'] ?? 1) : 1;
-                $baseCalculo      = is_array($tarifaInfo) ? strtoupper(trim((string)($tarifaInfo['base_calculo'] ?? 'VALOR_LIQUIDACION'))) : 'VALOR_LIQUIDACION';
-
-                $valorBaseCalculo = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
-                $valorAPagar      = ($pagarPorCantidad === 1) ? ($valorBaseCalculo * $cantItem) : $valorBaseCalculo;
-
-                $sItem['valor_und_tarifario'] = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
-                $sItem['tarifa_base_calculo'] = $baseCalculo;
-                $sItem['pagar_por_cantidad']  = $pagarPorCantidad;
-                $sItem['cantidad']            = $cantItem;
-                $sItem['valor_a_pagar']       = $valorAPagar;
-
-                // Verificación y Liquidación Especial para Médicos con Modalidad BLOQUEO_HO / BLOQUEOS_HO
-                $sMedUser = strtoupper(trim((string)($sItem['usuario_medico'] ?? '')));
-                $sMedNom  = strtoupper(trim((string)($sItem['usuario'] ?? '')));
-                $docTieneBloqueoHO = (!empty($sMedUser) && (isset($medicosModalidadesMap[$sMedUser]['BLOQUEO_HO']) || isset($medicosModalidadesMap[$sMedUser]['BLOQUEOS_HO']))) ||
-                                     (!empty($sMedNom)  && (isset($medicosModalidadesMap[$sMedNom]['BLOQUEO_HO'])  || isset($medicosModalidadesMap[$sMedNom]['BLOQUEOS_HO'])));
-                $cleanCUPSP = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sItem['cups'] ?? ''))));
-                $cleanCUPSS = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)$cupsCodeServinte)));
-                $cfgBloqueo = $tarifarioBloqueosMap[$cleanCUPSP] ?? ($tarifarioBloqueosMap[$cleanCUPSS] ?? null);
-
-                $esBloqueo = ($cfgBloqueo !== null) || $esEstudioBloqueo($sItem['cups'] ?? '', $sItemData['concepto'] ?? '', $cupsCodeServinte, $sItemData['examen'] ?? '');
-
-                if ($docTieneBloqueoHO && $esBloqueo) {
-                    $pctBase  = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_base'] : floatval($porcentajesPagoMap['BLOQUEOS_HO'] ?? $porcentajesPagoMap['BLOQUEO_HO'] ?? 40.0);
-                    $pctCant2 = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_cant_2'] : 70.0;
-                    $pctCant3 = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_cant_3'] : 60.0;
-
-                    $valBase  = $cfgBloqueo ? (float)$cfgBloqueo['valor_base'] : 0.0;
-                    $valCant2 = $cfgBloqueo ? (float)$cfgBloqueo['valor_cant_2'] : 0.0;
-                    $valCant3 = $cfgBloqueo ? (float)$cfgBloqueo['valor_cant_3'] : 0.0;
-
-                    $cantInt = (int)round($cantItem);
-
-                    $esTier3 = ($cantInt >= 3) || ($valCant3 > 0 && abs($valorTotalServinte - $valCant3) < 100);
-                    $esTier2 = !$esTier3 && (($cantInt == 2) || ($valCant2 > 0 && abs($valorTotalServinte - $valCant2) < 100));
-
-                    if ($esTier3) {
-                        $pctBloqueo       = $pctCant3;
-                        $tierLabel        = 'Cant. 3+';
-                        $valEstudioTier   = $valCant3;
-                    } elseif ($esTier2) {
-                        $pctBloqueo       = $pctCant2;
-                        $tierLabel        = 'Cant. 2';
-                        $valEstudioTier   = $valCant2;
-                    } else {
-                        $pctBloqueo       = $pctBase;
-                        $tierLabel        = 'Cant. 1';
-                        $valEstudioTier   = $valBase;
+                    // Match exacto o secundario legítimo
+                    if ((!empty($sCodClean) && !empty($pCode) && $sCodClean === $pCode) ||
+                        (!empty($sSecClean) && !empty($pCode) && $sSecClean === $pCode) ||
+                        (!empty($sCodClean) && !empty($pSec) && $sCodClean === $pSec) ||
+                        (!empty($sSecClean) && !empty($pSec) && $sSecClean === $pSec)) {
+                        $matchingProteoCand = $pCand;
+                        break;
                     }
 
-                    $baseTotalEstudio  = $valorTotalServinte > 0 ? $valorTotalServinte : ($valEstudioTier > 0 ? $valEstudioTier : ($valBase > 0 ? $valBase : $valorAPagar));
-                    $valorPagarBloqueo = round($baseTotalEstudio * ($pctBloqueo / 100.0), 2);
-                    $valorUndBloqueo   = $cantItem > 0 ? round($valorPagarBloqueo / $cantItem, 2) : $valorPagarBloqueo;
+                    // Candidato de código secundario/homologable
+                    if ($candidateDiferenteCups === null && (!empty($sSecClean) || !empty($pSec))) {
+                        $candidateDiferenteCups = $pCand;
+                    }
+                }
 
-                    $sItem['valor_und_tarifario']   = $valorUndBloqueo;
-                    $sItem['valor_a_pagar']         = $valorPagarBloqueo;
-                    $sItem['es_bloqueo_ho']         = true;
-                    $sItem['bloqueo_pct']           = $pctBloqueo;
-                    $sItem['bloqueo_tier_label']    = $tierLabel;
-                    $sItem['bloqueo_valor_estudio'] = $baseTotalEstudio;
-                    $sItem['bloqueo_nota']          = $cfgBloqueo && !empty($cfgBloqueo['observaciones']) ? $cfgBloqueo['observaciones'] : 'Estas condiciones están sujetas a lo contratado por cada entidad, por ende pueden variar';
-                    $sItem['tarifa_origen']         = 'TARIFARIO_BLOQUEOS';
+                // SI COINCIDE EL CÓDIGO CUPS: Este examen está legítimamente cruzado con Proteo
+                if ($matchingProteoCand !== null) {
+                    // Si hay filtro médico y este registro no pertenece al médico filtrado, omitir
+                    if (!empty($medicoFiltro)) {
+                        $uCandMed = strtoupper(trim((string)($matchingProteoCand['usuario_medico'] ?? '')));
+                        $uCandNom = strtoupper(trim((string)($matchingProteoCand['usuario'] ?? '')));
+                        $mFiltroUpper = strtoupper($medicoFiltro);
+                        if ($uCandMed !== $mFiltroUpper && strpos($uCandNom, $mFiltroUpper) === false) {
+                            continue;
+                        }
+                    }
+
+                    $itemCounter++;
+                    $sItem = [
+                        'origen'           => 'SERVINTE',
+                        'id'               => 'CRUZ-' . $sItemData['fuente'] . '-' . $sItemData['ingreso'] . '-' . $sItemData['codigo_examen'],
+                        'unique_id'        => 'CRUZ_' . $sItemData['fuente'] . '_' . $sItemData['ingreso'] . '_' . $itemCounter,
+                        'documento'        => !empty($matchingProteoCand['documento']) ? $matchingProteoCand['documento'] : $sItemData['identificacion'],
+                        'nombre'           => !empty($matchingProteoCand['nombre']) ? $matchingProteoCand['nombre'] : $sItemData['paciente'],
+                        'fecha'            => !empty($matchingProteoCand['fecha']) ? $matchingProteoCand['fecha'] : $sItemData['fecha'],
+                        'fuente'           => $sItemData['fuente'],
+                        'ingreso'          => $sItemData['ingreso'],
+                        'cups'             => $matchingProteoCand['cups'] ?? ($sItemData['codigo_examen'] . ' - ' . $sItemData['examen']),
+                        'modalidad'        => $matchingProteoCand['modalidad'] ?? 'SERVINTE',
+                        'estado_actual'    => $matchingProteoCand['estado_actual'] ?? 'Facturado y Leído',
+                        'sede'             => !empty($matchingProteoCand['sede']) ? $matchingProteoCand['sede'] : $sItemData['sede'],
+                        'usuario'          => $matchingProteoCand['usuario'],
+                        'usuario_medico'   => $matchingProteoCand['usuario_medico'],
+                        'tipo_paciente'    => $sItemData['tipo_paciente'] ?? 'E',
+                        'servinte'         => $sItemData,
+                        'servinte_total_ingreso' => $sItemData['total'],
+                        'servinte_items'   => [$sItemData],
+                        'proteo_unmatched' => null,
+                        'cruce'            => 'CRUZADO',
+                        'discrepancia'     => 'Cruzado Exitosamente por Fuente (' . $sItemData['fuente'] . '), Ingreso (' . $sItemData['ingreso'] . ') y CUPS (' . $sItemData['codigo_examen'] . ')'
+                    ];
+
+                    $cupsCodeServinte   = $sItemData['codigo_examen'] ?? '';
+                    $tipoPacItem        = $sItemData['tipo_paciente'] ?? 'E';
+                    $cantItem           = (float)($sItemData['cantidad'] ?? 1);
+                    if ($cantItem <= 0) $cantItem = 1;
+                    $valorTotalServinte = (float)($sItemData['total'] ?? 0);
+                    $valorUndServinte   = ($cantItem > 0 && $valorTotalServinte > 0) ? ($valorTotalServinte / $cantItem) : $valorTotalServinte;
+
+                    $tarifaInfo       = $obtenerTarifa($sItem['cups'], $tipoPacItem, $cupsCodeServinte, $sItem['usuario_medico'] ?? '', $sItem['usuario'] ?? '', $valorUndServinte);
+                    $valUndTarifa     = is_array($tarifaInfo) ? (float)($tarifaInfo['valor_und'] ?? 0) : (float)$tarifaInfo;
+                    $pagarPorCantidad = is_array($tarifaInfo) ? (int)($tarifaInfo['pagar_por_cantidad'] ?? 1) : 1;
+                    $baseCalculo      = is_array($tarifaInfo) ? strtoupper(trim((string)($tarifaInfo['base_calculo'] ?? 'VALOR_LIQUIDACION'))) : 'VALOR_LIQUIDACION';
+
+                    $valorBaseCalculo = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
+                    $valorAPagar      = ($pagarPorCantidad != 0) ? ($valorBaseCalculo * $cantItem) : $valorBaseCalculo;
+
+                    $sItem['valor_und_tarifario'] = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
+                    $sItem['tarifa_base_calculo'] = $baseCalculo;
+                    $sItem['pagar_por_cantidad']  = $pagarPorCantidad;
+                    $sItem['cantidad']            = $cantItem;
+                    $sItem['valor_a_pagar']       = $valorAPagar;
+
+                    // Verificación y Liquidación Especial para Médicos con Modalidad BLOQUEO_HO / BLOQUEOS_HO
+                    $sMedUser = strtoupper(trim((string)($sItem['usuario_medico'] ?? '')));
+                    $sMedNom  = strtoupper(trim((string)($sItem['usuario'] ?? '')));
+                    $docTieneBloqueoHO = (!empty($sMedUser) && (isset($medicosModalidadesMap[$sMedUser]['BLOQUEO_HO']) || isset($medicosModalidadesMap[$sMedUser]['BLOQUEOS_HO']))) ||
+                                         (!empty($sMedNom)  && (isset($medicosModalidadesMap[$sMedNom]['BLOQUEO_HO'])  || isset($medicosModalidadesMap[$sMedNom]['BLOQUEOS_HO'])));
+                    $cleanCUPSP = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)($sItem['cups'] ?? ''))));
+                    $cleanCUPSS = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)$cupsCodeServinte)));
+                    $cfgBloqueo = $tarifarioBloqueosMap[$cleanCUPSP] ?? ($tarifarioBloqueosMap[$cleanCUPSS] ?? null);
+
+                    $esBloqueo = ($cfgBloqueo !== null) || $esEstudioBloqueo($sItem['cups'] ?? '', $sItemData['concepto'] ?? '', $cupsCodeServinte, $sItemData['examen'] ?? '');
+
+                    if ($docTieneBloqueoHO && $esBloqueo) {
+                        $pctBase  = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_base'] : floatval($porcentajesPagoMap['BLOQUEOS_HO'] ?? $porcentajesPagoMap['BLOQUEO_HO'] ?? 40.0);
+                        $pctCant2 = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_cant_2'] : 70.0;
+                        $pctCant3 = $cfgBloqueo ? (float)$cfgBloqueo['porcentaje_cant_3'] : 60.0;
+
+                        $valBase  = $cfgBloqueo ? (float)$cfgBloqueo['valor_base'] : 0.0;
+                        $valCant2 = $cfgBloqueo ? (float)$cfgBloqueo['valor_cant_2'] : 0.0;
+                        $valCant3 = $cfgBloqueo ? (float)$cfgBloqueo['valor_cant_3'] : 0.0;
+
+                        $cantInt = (int)round($cantItem);
+
+                        $esTier3 = ($cantInt >= 3) || ($valCant3 > 0 && abs($valorTotalServinte - $valCant3) < 100);
+                        $esTier2 = !$esTier3 && (($cantInt == 2) || ($valCant2 > 0 && abs($valorTotalServinte - $valCant2) < 100));
+
+                        if ($esTier3) {
+                            $pctBloqueo       = $pctCant3;
+                            $tierLabel        = 'Cant. 3+';
+                            $valEstudioTier   = $valCant3;
+                        } elseif ($esTier2) {
+                            $pctBloqueo       = $pctCant2;
+                            $tierLabel        = 'Cant. 2';
+                            $valEstudioTier   = $valCant2;
+                        } else {
+                            $pctBloqueo       = $pctBase;
+                            $tierLabel        = 'Cant. 1';
+                            $valEstudioTier   = $valBase;
+                        }
+
+                        $baseTotalEstudio  = $valorTotalServinte > 0 ? $valorTotalServinte : ($valEstudioTier > 0 ? $valEstudioTier : ($valBase > 0 ? $valBase : $valorAPagar));
+                        $valorPagarBloqueo = round($baseTotalEstudio * ($pctBloqueo / 100.0), 2);
+                        $valorUndBloqueo   = $cantItem > 0 ? round($valorPagarBloqueo / $cantItem, 2) : $valorPagarBloqueo;
+
+                        $sItem['valor_und_tarifario']   = $valorUndBloqueo;
+                        $sItem['valor_a_pagar']         = $valorPagarBloqueo;
+                        $sItem['es_bloqueo_ho']         = true;
+                        $sItem['bloqueo_pct']           = $pctBloqueo;
+                        $sItem['bloqueo_tier_label']    = $tierLabel;
+                        $sItem['bloqueo_valor_estudio'] = $baseTotalEstudio;
+                        $sItem['bloqueo_nota']          = $cfgBloqueo && !empty($cfgBloqueo['observaciones']) ? $cfgBloqueo['observaciones'] : 'Estas condiciones están sujetas a lo contratado por cada entidad, por ende pueden variar';
+                        $sItem['tarifa_origen']         = 'TARIFARIO_BLOQUEOS';
+                    } else {
+                        $sItem['es_bloqueo_ho']         = false;
+                        $sItem['bloqueo_pct']           = 0;
+                        $sItem['bloqueo_tier_label']    = '';
+                        $sItem['bloqueo_valor_estudio'] = 0;
+                        $sItem['bloqueo_nota']          = '';
+                    }
                 } else {
-                    $sItem['es_bloqueo_ho']         = false;
-                    $sItem['bloqueo_pct']           = 0;
-                    $sItem['bloqueo_tier_label']    = '';
-                    $sItem['bloqueo_valor_estudio'] = 0;
-                    $sItem['bloqueo_nota']          = '';
+                    // NO COINCIDE EL CÓDIGO CUPS con los procedimientos leídos en el lote de esta consulta.
+                    // Verificación contra el estado global de Proteo:
+                    $gpCandidates = $globalProteoEventsMap[$sIng][$sCodClean] ?? ($globalProteoEventsMap[$sIngClean][$sCodClean] ?? ($globalProteoEventsMap[$sIng][$sSecClean] ?? ($globalProteoEventsMap[$sIngClean][$sSecClean] ?? [])));
+
+                    $gpInfo = null;
+                    if (!empty($gpCandidates)) {
+                        $gpInfo = $gpCandidates[0];
+                        // CASO 1: En Proteo este estudio fue finalizado por un médico
+                        if ($gpInfo['is_finalizado']) {
+                            $docEnAlcance = false;
+                            if (!empty($medicoFiltro)) {
+                                $docEnAlcance = ($gpInfo['usuario_medico'] === strtoupper($medicoFiltro));
+                            } elseif (!empty($medicosBloqueoHOUsernames)) {
+                                $docEnAlcance = in_array($gpInfo['usuario_medico'], $medicosBloqueoHOUsernames);
+                            } else {
+                                $docEnAlcance = true;
+                            }
+                            if (!$docEnAlcance) {
+                                // Pertenece a la liquidación de otro médico. Omitir estrictamente.
+                                continue;
+                            }
+                        } else {
+                            // CASO 2: El estudio existe en Proteo pero NO ESTÁ FINALIZADO
+                            // No se puede liquidar ni pagar un estudio no finalizado. Omitir de liquidación.
+                            continue;
+                        }
+                    } else {
+                        // CASO 3: El estudio facturado en Servinte no tiene ninguna orden/evento en Proteo a nivel hospitalario
+                        // Si se está liquidando un médico o bloqueos específicos, omitir porque no tienen lectura que liquidar.
+                        if (!empty($medicoFiltro) || !empty($medicosBloqueoHOUsernames)) {
+                            continue;
+                        }
+                    }
+
+                    if (!empty($gpCandidates) && !empty($gpInfo['is_finalizado'])) {
+                        // ¡EL ESTUDIO EXISTE Y ESTÁ FINALIZADO EN PROTEO POR UN MÉDICO EN ALCANCE!
+                        $itemCounter++;
+                        $sItem = [
+                            'origen'           => 'SERVINTE',
+                            'id'               => 'CRUZ-' . $sItemData['fuente'] . '-' . $sItemData['ingreso'] . '-' . $sItemData['codigo_examen'],
+                            'unique_id'        => 'CRUZ_' . $sItemData['fuente'] . '_' . $sItemData['ingreso'] . '_' . $itemCounter,
+                            'documento'        => $sItemData['identificacion'],
+                            'nombre'           => $sItemData['paciente'],
+                            'fecha'            => $sItemData['fecha'],
+                            'fuente'           => $sItemData['fuente'],
+                            'ingreso'          => $sItemData['ingreso'],
+                            'cups'             => !empty($gpInfo['cups']) ? $gpInfo['cups'] : ($sItemData['codigo_examen'] . ' - ' . $sItemData['examen']),
+                            'modalidad'        => 'SERVINTE',
+                            'estado_actual'    => $gpInfo['status'] ?? 'Finalizado lectura WL',
+                            'sede'             => $sItemData['sede'],
+                            'usuario'          => $gpInfo['medico'],
+                            'usuario_medico'   => $gpInfo['usuario_medico'],
+                            'tipo_paciente'    => $sItemData['tipo_paciente'] ?? 'E',
+                            'servinte'         => $sItemData,
+                            'servinte_total_ingreso' => $sItemData['total'],
+                            'servinte_items'   => [$sItemData],
+                            'proteo_unmatched' => null,
+                            'cruce'            => 'CRUZADO',
+                            'discrepancia'     => 'Cruzado Exitosamente por Fuente (' . $sItemData['fuente'] . '), Ingreso (' . $sItemData['ingreso'] . ') y CUPS (' . $sItemData['codigo_examen'] . ')'
+                        ];
+
+                        $cupsCodeServinte   = $sItemData['codigo_examen'] ?? '';
+                        $tipoPacItem        = $sItemData['tipo_paciente'] ?? 'E';
+                        $cantItem           = (float)($sItemData['cantidad'] ?? 1);
+                        if ($cantItem <= 0) $cantItem = 1;
+                        $valorTotalServinte = (float)($sItemData['total'] ?? 0);
+                        $valorUndServinte   = ($cantItem > 0 && $valorTotalServinte > 0) ? ($valorTotalServinte / $cantItem) : $valorTotalServinte;
+
+                        $tarifaInfo       = $obtenerTarifa($sItem['cups'], $tipoPacItem, $cupsCodeServinte, $sItem['usuario_medico'] ?? '', $sItem['usuario'] ?? '', $valorUndServinte);
+                        $valUndTarifa     = is_array($tarifaInfo) ? (float)($tarifaInfo['valor_und'] ?? 0) : (float)$tarifaInfo;
+                        $pagarPorCantidad = is_array($tarifaInfo) ? (int)($tarifaInfo['pagar_por_cantidad'] ?? 1) : 1;
+                        $baseCalculo      = is_array($tarifaInfo) ? strtoupper(trim((string)($tarifaInfo['base_calculo'] ?? 'VALOR_LIQUIDACION'))) : 'VALOR_LIQUIDACION';
+
+                        $valorBaseCalculo = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
+                        $valorAPagar      = ($pagarPorCantidad != 0) ? ($valorBaseCalculo * $cantItem) : $valorBaseCalculo;
+
+                        $sItem['valor_und_tarifario'] = ($baseCalculo === 'VALOR_EXAMEN') ? $valorUndServinte : $valUndTarifa;
+                        $sItem['tarifa_base_calculo'] = $baseCalculo;
+                        $sItem['pagar_por_cantidad']  = $pagarPorCantidad;
+                        $sItem['cantidad']            = $cantItem;
+                        $sItem['valor_a_pagar']       = $valorAPagar;
+                        $sItem['es_bloqueo_ho']       = false;
+                        $sItem['bloqueo_pct']         = 0;
+                        $sItem['bloqueo_tier_label']  = '';
+                        $sItem['bloqueo_valor_estudio'] = 0;
+                        $sItem['bloqueo_nota']        = '';
+                    } else {
+                        // Si llega aquí, es un verdadero registro Solo Servinte (auditoría general)
+                        $itemCounter++;
+                        $sItem = [
+                            'origen'           => 'SERVINTE',
+                            'id'               => 'SERV-' . $sItemData['fuente'] . '-' . $sItemData['ingreso'] . '-' . $sItemData['codigo_examen'],
+                            'unique_id'        => 'SERV_' . $sItemData['fuente'] . '_' . $sItemData['ingreso'] . '_' . $itemCounter,
+                            'documento'        => $sItemData['identificacion'],
+                            'nombre'           => $sItemData['paciente'],
+                            'fecha'            => $sItemData['fecha'],
+                            'fuente'           => $sItemData['fuente'],
+                            'ingreso'          => $sItemData['ingreso'],
+                            'cups'             => $sItemData['codigo_examen'] . ' - ' . $sItemData['examen'],
+                            'modalidad'        => 'SERVINTE',
+                            'estado_actual'    => 'Facturado en Servinte',
+                            'sede'             => $sItemData['sede'],
+                            'usuario'          => 'Sin Lectura en Proteo',
+                            'usuario_medico'   => 'N/A',
+                            'tipo_paciente'    => $sItemData['tipo_paciente'] ?? 'E',
+                            'servinte'         => $sItemData,
+                            'servinte_total_ingreso' => $sItemData['total'],
+                            'servinte_items'   => [$sItemData],
+                            'proteo_unmatched' => null,
+                            'cruce'            => 'SOLO_SERVINTE',
+                            'discrepancia'     => 'Facturado en Servinte (Fuente: ' . $sItemData['fuente'] . ', Ingreso: ' . $sItemData['ingreso'] . ', CUPS: ' . $sItemData['codigo_examen'] . ') sin orden ni evento registrado en Proteo',
+                            'valor_und_tarifario' => 0.0,
+                            'tarifa_base_calculo' => 'VALOR_LIQUIDACION',
+                            'pagar_por_cantidad'  => 0,
+                            'cantidad'            => (float)($sItemData['cantidad'] ?? 1),
+                            'valor_a_pagar'       => 0.0,
+                            'es_bloqueo_ho'       => false,
+                            'bloqueo_pct'         => 0,
+                            'bloqueo_tier_label'  => '',
+                            'bloqueo_valor_estudio' => 0,
+                            'bloqueo_nota'        => ''
+                        ];
+                    }
                 }
 
                 // Regla de Negocio: Médicos pertenecientes a IMADINSA SAS en Solo Servinte
@@ -2149,12 +2381,16 @@ if ($action === 'fetch_data' || $action === 'export_excel') {
 // --------------------------------------------------------------------------
 $listaMedicos = [];
 $medicosParafiscalesMap = [];
+$medicosAfcMap = [];
+        $medicosIbcMap = [];
 $medicosPensionadosMap = [];
 $medicosRetencionesMap = [];
 $medicosRetencion383Map = [];
 $medicosArlMap = [];
+$medicosEntidadMap = [];
 $parafiscalesConfigMap = [
-    'IBC'     => 40.0,
+    'AFC'     => 40.0,
+            'IBC'     => 40.0,
     'SALUD'   => 12.5,
     'PENSION' => 16.0,
     'ARL'     => 2.4360
@@ -2174,16 +2410,22 @@ if ($connLIHOInit !== false) {
         }
     }
 
-    // Médicos con Parafiscales, Pensionados, Retenciones, Rete 383, ARL y Modalidad Bloqueos_HO Activos
+    // Médicos con Parafiscales, IBC, Pensionados, Retenciones, Rete 383, ARL, Modalidad Bloqueos_HO y Entidad Vinculada
     $sqlMedParaInit = "SELECT m.usuario_proteo, m.cedula, u.nombre_completo,
                               ISNULL(m.parafiscales, ISNULL(u.parafiscales, 0)) AS parafiscales,
+                              ISNULL(m.afc, ISNULL(u.afc, ISNULL(m.ibc, ISNULL(u.ibc, 0)))) AS afc,
+                              ISNULL(m.ibc, ISNULL(u.ibc, ISNULL(m.afc, ISNULL(u.afc, 0)))) AS ibc,
                               ISNULL(m.pensionado, ISNULL(u.pensionado, 0)) AS pensionado,
                               ISNULL(m.retenciones, ISNULL(u.retenciones, 0)) AS retenciones,
                               ISNULL(m.retencion_art_383, ISNULL(u.retencion_art_383, 0)) AS retencion_art_383,
                               ISNULL(m.arl, ISNULL(u.arl, 0)) AS arl,
-                              ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales
+                              ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales,
+                              ISNULL(m.entidad_id, ISNULL(u.entidad_id, 0)) AS entidad_id,
+                              e.nombre AS entidad_nombre,
+                              e.nit AS entidad_nit
                        FROM dbo.medicos m 
-                       LEFT JOIN dbo.usuarios u ON m.usuario_id = u.id";
+                       LEFT JOIN dbo.usuarios u ON m.usuario_id = u.id
+                       LEFT JOIN dbo.maestro_entidades e ON ISNULL(m.entidad_id, ISNULL(u.entidad_id, 0)) = e.id";
     $stmtMedParaInit = sqlsrv_query($connLIHOInit, $sqlMedParaInit);
     $medicosBloqueoHOMap = [];
     $medicosBloqueoHOList = [];
@@ -2193,10 +2435,22 @@ if ($connLIHOInit !== false) {
             $ced   = trim((string)($rME['cedula'] ?? ''));
             $nom   = strtoupper(trim((string)($rME['nombre_completo'] ?? '')));
             $isPara = ((int)($rME['parafiscales'] ?? 0) === 1);
+            $isAfc  = ((int)($rME['afc'] ?? 0) === 1 || (int)($rME['ibc'] ?? 0) === 1);
+            $isIbc  = $isAfc;
             $isPen  = ((int)($rME['pensionado'] ?? 0) === 1);
             $isRet  = ((int)($rME['retenciones'] ?? 0) === 1);
             $isR383 = ((int)($rME['retencion_art_383'] ?? 0) === 1);
             $isArl  = ((int)($rME['arl'] ?? 0) === 1);
+
+            $docEntId  = (int)($rME['entidad_id'] ?? 0);
+            $docEntNom = trim((string)($rME['entidad_nombre'] ?? ''));
+            $docEntNit = trim((string)($rME['entidad_nit'] ?? ''));
+            if ($docEntId > 0 && !empty($docEntNom)) {
+                $docEntArr = ['id' => $docEntId, 'nombre' => $docEntNom, 'nit' => $docEntNit];
+                if (!empty($pUser)) $medicosEntidadMap[$pUser] = $docEntArr;
+                if (!empty($ced))   $medicosEntidadMap[$ced] = $docEntArr;
+                if (!empty($nom))   $medicosEntidadMap[$nom] = $docEntArr;
+            }
 
             $modsStr = strtoupper(trim((string)($rME['modalidades_adicionales'] ?? '')));
             $modsArr = !empty($modsStr) ? array_filter(array_map('trim', explode(',', $modsStr))) : [];
@@ -2206,6 +2460,11 @@ if ($connLIHOInit !== false) {
                 if (!empty($pUser)) $medicosParafiscalesMap[$pUser] = true;
                 if (!empty($ced))   $medicosParafiscalesMap[$ced] = true;
                 if (!empty($nom))   $medicosParafiscalesMap[$nom] = true;
+            }
+            if ($isAfc || $isIbc) {
+                if (!empty($pUser)) { $medicosAfcMap[$pUser] = true; $medicosIbcMap[$pUser] = true; }
+                if (!empty($ced))   { $medicosAfcMap[$ced] = true; $medicosIbcMap[$ced] = true; }
+                if (!empty($nom))   { $medicosAfcMap[$nom] = true; $medicosIbcMap[$nom] = true; }
             }
             if ($isPen) {
                 if (!empty($pUser)) $medicosPensionadosMap[$pUser] = true;
@@ -2519,22 +2778,32 @@ usort($listaMedicos, function($a, $b) {
                                     $uUpper  = strtoupper(trim((string)($m['username'] ?? '')));
                                     $nUpper  = strtoupper(trim((string)($m['nombre'] ?? '')));
                                     $hasPara = (!empty($medicosParafiscalesMap[$uUpper]) || !empty($medicosParafiscalesMap[$nUpper]));
+                                    $hasAfc  = (!empty($medicosAfcMap[$uUpper]) || !empty($medicosAfcMap[$nUpper]) || !empty($medicosIbcMap[$uUpper]) || !empty($medicosIbcMap[$nUpper]));
+                                    $hasIbc  = $hasAfc;
                                     $hasPen  = (!empty($medicosPensionadosMap[$uUpper]) || !empty($medicosPensionadosMap[$nUpper]));
                                     $hasRet  = (!empty($medicosRetencionesMap[$uUpper]) || !empty($medicosRetencionesMap[$nUpper]));
                                     $hasR383 = (!empty($medicosRetencion383Map[$uUpper]) || !empty($medicosRetencion383Map[$nUpper]));
                                     $hasArl  = (!empty($medicosArlMap[$uUpper]) || !empty($medicosArlMap[$nUpper]));
+                                    $docEnt  = $medicosEntidadMap[$uUpper] ?? ($medicosEntidadMap[$nUpper] ?? null);
+                                    $hasDocEnt = (!empty($docEnt['nombre']) && $docEnt['nombre'] !== 'HERNÁN OCAZIONEZ Y CÍA S.A.S.');
                                 ?>
                                 <li>
-                                    <button type="button" data-value="<?php echo htmlspecialchars($m['username']); ?>" data-label="<?php echo htmlspecialchars($m['nombre']); ?>" data-parafiscales="<?php echo $hasPara ? '1' : '0'; ?>" data-pensionado="<?php echo $hasPen ? '1' : '0'; ?>" data-retenciones="<?php echo $hasRet ? '1' : '0'; ?>" data-retencion-383="<?php echo $hasR383 ? '1' : '0'; ?>" data-arl="<?php echo $hasArl ? '1' : '0'; ?>"
+                                    <button type="button" data-value="<?php echo htmlspecialchars($m['username']); ?>" data-label="<?php echo htmlspecialchars($m['nombre']); ?>" data-parafiscales="<?php echo $hasPara ? '1' : '0'; ?>" data-afc="<?php echo $hasAfc ? '1' : '0'; ?>" data-ibc="<?php echo $hasAfc ? '1' : '0'; ?>" data-pensionado="<?php echo $hasPen ? '1' : '0'; ?>" data-retenciones="<?php echo $hasRet ? '1' : '0'; ?>" data-retencion-383="<?php echo $hasR383 ? '1' : '0'; ?>" data-arl="<?php echo $hasArl ? '1' : '0'; ?>" data-entidad-id="<?php echo htmlspecialchars($docEnt['id'] ?? ''); ?>" data-entidad-nombre="<?php echo htmlspecialchars($docEnt['nombre'] ?? ''); ?>" data-entidad-nit="<?php echo htmlspecialchars($docEnt['nit'] ?? ''); ?>"
                                         class="medico-option-btn w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center justify-between group">
                                         <div class="flex flex-col min-w-0 pr-2">
                                             <span class="truncate font-semibold text-slate-800 dark:text-slate-100 group-hover:text-primary dark:group-hover:text-white"><?php echo htmlspecialchars($m['nombre']); ?></span>
                                             <span class="text-[10px] text-slate-400 font-mono"><?php echo htmlspecialchars($m['username']); ?></span>
                                         </div>
-                                        <div class="flex items-center gap-1 shrink-0">
+                                        <div class="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                            <?php if ($hasDocEnt): ?>
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 text-[9px] font-extrabold uppercase border border-teal-200 dark:border-teal-800" title="Entidad vinculada"><i class="fa-solid fa-hospital text-[8px] mr-1"></i><?php echo htmlspecialchars($docEnt['nombre']); ?></span>
+                                            <?php endif; ?>
                                             <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[9px] font-extrabold uppercase">Bloqueos HO</span>
                                             <?php if ($hasPara): ?>
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 text-[9px] font-extrabold uppercase">Parafiscales</span>
+                                            <?php endif; ?>
+                                            <?php if ($hasAfc || $hasIbc): ?>
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 text-[9px] font-extrabold uppercase">AFC</span>
                                             <?php endif; ?>
                                             <?php if ($hasPen): ?>
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 text-[9px] font-extrabold uppercase">Pensionado</span>
@@ -2799,7 +3068,6 @@ usort($listaMedicos, function($a, $b) {
                             <th class="py-3.5 px-3 text-center w-12">
                                 <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllPage(this.checked)" class="custom-chk" title="Seleccionar / Deseleccionar página actual" />
                             </th>
-                            <th class="py-3 px-4">Origen / Ref</th>
                             <th class="py-3 px-4">Fuente / Ingreso</th>
                             <th class="py-3 px-4 text-center">Tipo Pac.</th>
                             <th class="py-3 px-4">Fecha / Sede</th>
@@ -3187,14 +3455,25 @@ usort($listaMedicos, function($a, $b) {
 
                                 <div class="p-4 space-y-3">
                                     
-                                    <!-- Deducciones AFC (Ocultas / $0) -->
-                                    <input type="hidden" id="ded_afc" value="0">
-
+                                    <!-- IBC Mes (Visible si aplica Parafiscales / Pensión / ARL) -->
                                     <div id="row_ded_ibc" class="flex items-center justify-between gap-2">
                                         <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">IBC MES (ESTIMADO)</label>
                                         <div class="w-36 text-right pr-2">
                                             <span id="ded_ibc_display" class="font-mono font-black text-xs text-slate-900 dark:text-white">$ 0</span>
                                             <input type="hidden" id="ded_ibc" value="0">
+                                        </div>
+                                    </div>
+
+                                    <!-- Fila Deducción AFC Mes (Manual si el médico tiene AFC activo) -->
+                                    <div id="row_ded_afc" class="hidden flex items-center justify-between gap-2 text-rose-600 dark:text-rose-400">
+                                        <div class="flex items-center gap-1.5">
+                                            <label class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">AFC MES</label>
+                                            <span class="text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider bg-teal-100 dark:bg-teal-950/60 px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800/60">Manual</span>
+                                        </div>
+                                        <div class="relative w-36">
+                                            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-rose-600 dark:text-rose-400 text-xs font-bold">- $</span>
+                                            <input type="text" inputmode="numeric" id="ded_afc" value="0" oninput="formatInputMiles(this); recalcularLiquidacion(false)" 
+                                                class="w-full pl-8 pr-2 py-1 bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-lg text-right font-mono font-bold text-rose-700 dark:text-rose-300 text-xs focus:ring-2 focus:ring-rose-500/30 outline-none">
                                         </div>
                                     </div>
 
@@ -3601,6 +3880,10 @@ usort($listaMedicos, function($a, $b) {
 
     <!-- JavaScript Logic -->
     <script>
+        window.currentEntidadIdLiq = <?php echo json_encode($entidadActivaId ?: 'PROPIO'); ?>;
+        window.currentEntidadNombreLiq = <?php echo json_encode($entidadActivaNombre ?: 'HERNÁN OCAZIONEZ Y CÍA S.A.S.'); ?>;
+        window.currentEntidadNitLiq = <?php echo json_encode($entidadActivaNit ?: ''); ?>;
+
         let allData = [];
         let filteredData = [];
         let paginaActual = 1;
@@ -3849,11 +4132,16 @@ usort($listaMedicos, function($a, $b) {
         // --- CONFIGURACIÓN EN VIVO DE PARAFISCALES, PENSIONADOS Y RETENCIONES ---
         window.parafiscalesConfig = <?php echo json_encode($parafiscalesConfigMap); ?>;
         window.medicosParafiscalesMap = <?php echo json_encode($medicosParafiscalesMap); ?>;
+        window.medicosAfcMap = <?php echo json_encode($medicosAfcMap ?? $medicosIbcMap); ?>;
+        window.medicosIbcMap = <?php echo json_encode($medicosIbcMap); ?>;
         window.medicosPensionadosMap = <?php echo json_encode($medicosPensionadosMap); ?>;
         window.medicosRetencionesMap = <?php echo json_encode($medicosRetencionesMap); ?>;
         window.medicosRetencion383Map = <?php echo json_encode($medicosRetencion383Map); ?>;
         window.medicosArlMap = <?php echo json_encode($medicosArlMap); ?>;
+        window.medicosEntidadMap = <?php echo json_encode($medicosEntidadMap); ?>;
         window.currentMedicoHasParafiscales = false;
+        window.currentMedicoHasAfc = false;
+        window.currentMedicoHasIbc = false;
         window.currentMedicoIsPensionado = false;
         window.currentMedicoHasRetenciones = false;
         window.currentMedicoHasRetencion383 = false;
@@ -4897,22 +5185,43 @@ usort($listaMedicos, function($a, $b) {
                 const ringClass = isSelected ? 'ring-2 ring-tertiary shadow-lg' : (isBoni ? 'border-amber-400/80 dark:border-amber-600 shadow-amber-500/10' : '');
 
                 const badgeLabel = isBoni ? `<span class="bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded text-[8px] font-black mr-1 uppercase">Bono</span>` : '';
-                const cantLabel = isBoni ? `${c.cantidad.toLocaleString()} bono(s)` : c.cantidad.toLocaleString();
                 const pagarPrefix = isBoni ? '+$' : '$';
-                const detalleDobles = (!isBoni && c.registros && c.cantidad > c.registros) 
-                    ? `<span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 font-sans tracking-normal ml-1" title="${c.registros} registros atendidos (${c.cantidad - c.registros} estudio(s) doble(s)/bilateral(es))">(${c.registros} reg. • ${c.cantidad - c.registros} dobles)</span>` 
-                    : '';
+
+                let counterHtml = '';
+                if (isBoni) {
+                    counterHtml = `
+                        <div class="flex items-baseline gap-1">
+                            <h3 class="text-2xl font-black font-outfit text-amber-600 dark:text-amber-400">${c.cantidad.toLocaleString('es-CO')}</h3>
+                            <span class="text-xs font-semibold text-amber-600 dark:text-amber-400">bono(s)</span>
+                        </div>
+                    `;
+                } else {
+                    const numRegs = (c.registros || c.cantidad || 0);
+                    const tieneDobles = (c.registros && c.cantidad > c.registros);
+                    const diffDobles = c.cantidad - c.registros;
+                    counterHtml = `
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <h3 class="text-2xl font-black font-outfit text-slate-900 dark:text-white leading-none">${numRegs.toLocaleString('es-CO')}</h3>
+                            <span class="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500 font-sans tracking-wide">reg.</span>
+                            ${tieneDobles ? `
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 dark:bg-teal-950/70 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800" title="${c.cantidad.toLocaleString('es-CO')} estudios liquidados (+${diffDobles.toLocaleString('es-CO')} adicionales por exámenes dobles/bilaterales)">
+                                    <i class="fa-solid fa-layer-group text-[8px]"></i> ${c.cantidad.toLocaleString('es-CO')} est.
+                                </span>
+                            ` : ''}
+                        </div>
+                    `;
+                }
 
                 cardsHtml += `
                     <div class="kpi-concepto-card ${ringClass} bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between relative overflow-hidden group hover:border-tertiary/60 transition-all cursor-pointer hover:scale-[1.02] active:scale-98" 
                         data-concepto="${cKey}"
                         onclick="filtrarPorConcepto('${cKey}')" 
-                        title="${isBoni ? 'Hacer clic para filtrar y ver las tomografías contrastadas que generaron esta bonificación' : c.cantidad + ' estudios liquidados en ' + (c.registros || c.cantidad) + ' registros. Hacer clic para filtrar tabla por concepto ' + c.nombre}">
+                        title="${isBoni ? 'Hacer clic para filtrar y ver las tomografías contrastadas que generaron esta bonificación' : (c.registros || c.cantidad) + ' registros (' + c.cantidad + ' estudios liquidados). Clic para filtrar tabla por concepto ' + c.nombre}">
                         <div class="space-y-1 min-w-0 pr-1">
                             <p class="text-[10px] font-bold uppercase tracking-wider truncate ${style.text}">
                                 ${badgeLabel}${htmlspecialchars(c.nombre)} <span class="font-mono opacity-80 font-normal">(${htmlspecialchars(c.codigo)})</span>
                             </p>
-                            <h3 class="text-2xl font-black font-outfit ${isBoni ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}">${cantLabel}${detalleDobles}</h3>
+                            ${counterHtml}
                             <p class="text-[10px] ${style.text} font-semibold truncate">${pagarPrefix}${(c.valor_pagar || 0).toLocaleString('es-CO')} a pagar</p>
                         </div>
                         <div class="p-2.5 rounded-2xl ${style.bg} ${style.text} group-hover:scale-110 transition-transform duration-300 shrink-0">
@@ -5149,7 +5458,7 @@ usort($listaMedicos, function($a, $b) {
             if (!haConsultado) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="13" class="py-16 text-center text-slate-400 dark:text-slate-500">
+                        <td colspan="12" class="py-16 text-center text-slate-400 dark:text-slate-500">
                             <div class="w-16 h-16 rounded-2xl bg-teal-50 dark:bg-slate-800 text-tertiary flex items-center justify-center mx-auto mb-3 border border-teal-100 dark:border-slate-700 shadow-sm">
                                 <span class="material-symbols-outlined text-3xl">pageview</span>
                             </div>
@@ -5173,7 +5482,7 @@ usort($listaMedicos, function($a, $b) {
             if (total === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="13" class="py-12 text-center text-slate-400 dark:text-slate-500">
+                        <td colspan="12" class="py-12 text-center text-slate-400 dark:text-slate-500">
                             <span class="material-symbols-outlined text-4xl block mb-2 opacity-50">search_off</span>
                             <p class="font-bold text-sm">No se encontraron registros para el criterio seleccionado.</p>
                             <p class="text-xs">Prueba ajustando el rango de fechas o los filtros de búsqueda.</p>
@@ -5281,10 +5590,6 @@ usort($listaMedicos, function($a, $b) {
                     <td class="py-3 px-3 text-center w-12" onclick="event.stopPropagation();">
                         <input type="checkbox" class="row-checkbox custom-chk" 
                             data-id="${uniqueId}" ${isSelected ? 'checked' : ''} onchange="toggleSelectRow('${uniqueId}', this.checked)" />
-                    </td>
-                    <td class="py-3 px-4 whitespace-nowrap" onclick="verDetalle('${uniqueId}')">
-                        ${origenBadge}
-                        <div class="text-[10px] text-slate-400 mt-0.5">Ref: ${htmlspecialchars(item.id)}</div>
                     </td>
                     <td class="py-3 px-4 font-bold text-slate-900 dark:text-white whitespace-nowrap" onclick="verDetalle('${uniqueId}')">
                         <span class="text-tertiary">${htmlspecialchars(item.fuente || '-')}</span> / <span class="text-slate-700 dark:text-slate-300">${htmlspecialchars(item.ingreso || '-')}</span>
@@ -6045,38 +6350,65 @@ usort($listaMedicos, function($a, $b) {
             periodoStr += ` (${selectedIds.size} REGISTROS AUDITADOS)`;
             document.getElementById('liqPeriodoLabel').textContent = periodoStr;
 
-            // Datos de la Entidad Activa
+            // Datos de la Entidad Activa y Entidad del Médico
+            const isGlobalMed = (!medicoVal || medicoLabel === '-- Todos los Médicos --');
+
             const entActivaNombre = <?php echo json_encode($entidadActivaNombre ?: 'HERNÁN OCAZIONEZ Y CÍA S.A.S.'); ?>;
             const entActivaNit    = <?php echo json_encode($entidadActivaNit ?: ''); ?>;
             const entActivaId     = <?php echo json_encode($entidadActivaId ?: 'PROPIO'); ?>;
 
+            let entFinalNombre = entActivaNombre;
+            let entFinalNit    = entActivaNit;
+            let entFinalId     = entActivaId;
+
+            if (!isGlobalMed) {
+                // Verificar si el médico seleccionado está vinculado a una entidad específica
+                const selBtn = document.querySelector(`.medico-option-btn[data-value="${medicoVal}"]`);
+                const docEntId = selBtn ? selBtn.getAttribute('data-entidad-id') : null;
+                const docEntNom = selBtn ? selBtn.getAttribute('data-entidad-nombre') : null;
+                const docEntNit = selBtn ? selBtn.getAttribute('data-entidad-nit') : null;
+
+                const cleanCed = medicoVal ? medicoVal.replace(/^[Cc]/, '').trim() : '';
+                const mapEnt = window.medicosEntidadMap && (window.medicosEntidadMap[medicoVal] || window.medicosEntidadMap[cleanCed] || (medicoLabel ? window.medicosEntidadMap[medicoLabel.toUpperCase().trim()] : null));
+
+                if (docEntNom && docEntNom.trim() !== '') {
+                    entFinalNombre = docEntNom.trim();
+                    entFinalId     = docEntId || 'PROPIO';
+                    entFinalNit    = docEntNit || '';
+                } else if (mapEnt && mapEnt.nombre && mapEnt.nombre.trim() !== '') {
+                    entFinalNombre = mapEnt.nombre.trim();
+                    entFinalId     = mapEnt.id || 'PROPIO';
+                    entFinalNit    = mapEnt.nit || '';
+                }
+            }
+
             window.novedadesLiquidacionAplicadas = [];
-            window.currentEntidadIdLiq = entActivaId || 'PROPIO';
-            window.currentEntidadNombreLiq = entActivaNombre;
+            window.currentEntidadIdLiq = entFinalId || 'PROPIO';
+            window.currentEntidadNombreLiq = entFinalNombre;
+            window.currentEntidadNitLiq = entFinalNit;
             const chkNov = document.getElementById('chkRegistraNovedadesLiq');
             if (chkNov) chkNov.checked = false;
             actualizarResumenBadgesNovedadesLiq();
 
             const elEmpresaLabel = document.getElementById('liqEmpresaLabel');
-            if (elEmpresaLabel) elEmpresaLabel.textContent = entActivaNombre;
+            if (elEmpresaLabel) elEmpresaLabel.textContent = entFinalNombre;
 
             const elEmpresaNitLabel = document.getElementById('liqEmpresaNitLabel');
             if (elEmpresaNitLabel) {
-                elEmpresaNitLabel.textContent = entActivaNit ? `• NIT: ${entActivaNit}` : (entActivaId === 'PROPIO' ? '• NIT: 890.980.123-4' : '');
+                elEmpresaNitLabel.textContent = entFinalNit ? `• NIT: ${entFinalNit}` : (entFinalId === 'PROPIO' ? '• NIT: 890.980.123-4' : '');
             }
 
             const elEmpresaPrint = document.getElementById('liqEmpresaNombrePrint');
-            if (elEmpresaPrint) elEmpresaPrint.textContent = entActivaNombre;
+            if (elEmpresaPrint) elEmpresaPrint.textContent = entFinalNombre;
 
             const elEmpresaNitPrint = document.getElementById('liqEmpresaNitPrint');
             if (elEmpresaNitPrint) {
-                elEmpresaNitPrint.textContent = entActivaNit ? `NIT: ${entActivaNit}` : (entActivaId === 'PROPIO' ? 'SISTEMAS DIAGNÓSTICOS E IMÁGENES MÉDICAS | NIT: 890.980.123-4' : 'ENTIDAD EXTERNA');
+                elEmpresaNitPrint.textContent = entFinalNit ? `NIT: ${entFinalNit}` : (entFinalId === 'PROPIO' ? 'SISTEMAS DIAGNÓSTICOS E IMÁGENES MÉDICAS | NIT: 890.980.123-4' : 'ENTIDAD EXTERNA');
             }
 
             const elEmpresaFirmaPrint = document.getElementById('liqEmpresaFirmaPrint');
-            if (elEmpresaFirmaPrint) elEmpresaFirmaPrint.textContent = entActivaNombre;
+            if (elEmpresaFirmaPrint) elEmpresaFirmaPrint.textContent = entFinalNombre;
 
-            const isGlobalMed = (!medicoVal || medicoLabel === '-- Todos los Médicos --');
             const docName = !isGlobalMed ? medicoLabel : 'TODOS LOS MÉDICOS / GLOBAL';
 
             const elDoctorSubhead = document.getElementById('liqDoctorSubhead');
@@ -6087,7 +6419,7 @@ usort($listaMedicos, function($a, $b) {
             if (isGlobalMed) {
                 if (elDoctorSubhead) elDoctorSubhead.textContent = 'ALCANCE / MODALIDAD';
                 if (elDoctorName) elDoctorName.textContent = 'TODOS LOS MÉDICOS / GLOBAL';
-                if (elDoctorCedula) elDoctorCedula.textContent = `CONSOLIDADO (${entActivaNombre})`;
+                if (elDoctorCedula) elDoctorCedula.textContent = `CONSOLIDADO (${entFinalNombre || entActivaNombre})`;
                 if (elTipoBadge) {
                     elTipoBadge.textContent = 'Consolidado Global';
                     elTipoBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700';
@@ -6105,7 +6437,7 @@ usort($listaMedicos, function($a, $b) {
             const docSig = document.getElementById('liqDoctorNamePrintSignature');
             if (docSig) docSig.textContent = isGlobalMed ? 'CONSOLIDADO INSTITUCIONAL (VARIOS MÉDICOS)' : docName;
             const docCedSig = document.getElementById('liqDoctorCedulaPrintSignature');
-            if (docCedSig) docCedSig.textContent = isGlobalMed ? `ENTIDAD: ${entActivaNombre}` : (medicoVal ? `C.C. / ID: ${medicoVal}` : 'C.C. / ID: -');
+            if (docCedSig) docCedSig.textContent = isGlobalMed ? `ENTIDAD: ${entFinalNombre || entActivaNombre}` : (medicoVal ? `C.C. / ID: ${medicoVal}` : 'C.C. / ID: -');
 
             let totalCruzadosOK = 0;
             let totalNoCruzados = 0;
@@ -6443,8 +6775,10 @@ usort($listaMedicos, function($a, $b) {
                 }
             }
 
-            // Determinar si el médico liquidado tiene Parafiscales activos, si es Pensionado, Retenciones, Retención Art 383 o ARL
+            // Determinar si el médico liquidado tiene Parafiscales activos, si tiene IBC activo, si es Pensionado, Retenciones, Retención Art 383 o ARL
             let hasParafiscales  = false;
+            let hasAfc           = false;
+            let hasIbc           = false;
             let isPensionado     = false;
             let hasRetenciones   = false;
             let hasRetencion383  = false;
@@ -6455,6 +6789,10 @@ usort($listaMedicos, function($a, $b) {
                 const uNom = String(medicoLabel).trim().toUpperCase();
                 if (window.medicosParafiscalesMap && (window.medicosParafiscalesMap[uVal] || window.medicosParafiscalesMap[uNom])) {
                     hasParafiscales = true;
+                }
+                if ((window.medicosAfcMap && (window.medicosAfcMap[uVal] || window.medicosAfcMap[uNom])) || (window.medicosIbcMap && (window.medicosIbcMap[uVal] || window.medicosIbcMap[uNom]))) {
+                    hasAfc = true;
+                    hasIbc = true;
                 }
                 if (window.medicosPensionadosMap && (window.medicosPensionadosMap[uVal] || window.medicosPensionadosMap[uNom])) {
                     isPensionado = true;
@@ -6472,6 +6810,10 @@ usort($listaMedicos, function($a, $b) {
             const selectedBtn = document.querySelector(`.medico-option-btn[data-value="${medicoVal}"]`);
             if (selectedBtn) {
                 if (selectedBtn.getAttribute('data-parafiscales') === '1') hasParafiscales = true;
+                if (selectedBtn.getAttribute('data-afc') === '1' || selectedBtn.getAttribute('data-ibc') === '1') {
+                    hasAfc = true;
+                    hasIbc = true;
+                }
                 if (selectedBtn.getAttribute('data-pensionado') === '1') isPensionado = true;
                 if (selectedBtn.getAttribute('data-retenciones') === '1') hasRetenciones = true;
                 if (selectedBtn.getAttribute('data-retencion-383') === '1') hasRetencion383 = true;
@@ -6482,6 +6824,10 @@ usort($listaMedicos, function($a, $b) {
                 const primerNom    = (dataToProcess[0].nombre || '').trim().toUpperCase();
                 if (!hasParafiscales && window.medicosParafiscalesMap && (window.medicosParafiscalesMap[primerMedico] || window.medicosParafiscalesMap[primerNom])) {
                     hasParafiscales = true;
+                }
+                if (!hasAfc && ((window.medicosAfcMap && (window.medicosAfcMap[primerMedico] || window.medicosAfcMap[primerNom])) || (window.medicosIbcMap && (window.medicosIbcMap[primerMedico] || window.medicosIbcMap[primerNom])))) {
+                    hasAfc = true;
+                    hasIbc = true;
                 }
                 if (!isPensionado && window.medicosPensionadosMap && (window.medicosPensionadosMap[primerMedico] || window.medicosPensionadosMap[primerNom])) {
                     isPensionado = true;
@@ -6502,21 +6848,25 @@ usort($listaMedicos, function($a, $b) {
                 hasRetencion383 = false;
             }
 
-            const hasAnyDeductionActive = (hasParafiscales || isPensionado || hasRetenciones || hasRetencion383 || hasArl);
+            const hasAnyDeductionActive = (hasParafiscales || hasAfc || hasIbc || isPensionado || hasRetenciones || hasRetencion383 || hasArl);
 
             window.currentMedicoHasParafiscales  = hasParafiscales;
+            window.currentMedicoHasAfc          = hasAfc;
+            window.currentMedicoHasIbc          = hasIbc;
             window.currentMedicoIsPensionado     = isPensionado;
             window.currentMedicoHasRetenciones   = hasRetenciones;
             window.currentMedicoHasRetencion383  = hasRetencion383;
             window.currentMedicoHasArl           = hasArl;
             window.currentMedicoHasAnyDeduction  = hasAnyDeductionActive;
 
-            const ibcPct     = (window.parafiscalesConfig && window.parafiscalesConfig.IBC !== undefined) ? Number(window.parafiscalesConfig.IBC) : 40.0;
+            const ibcPct     = (window.parafiscalesConfig && (window.parafiscalesConfig.IBC !== undefined ? window.parafiscalesConfig.IBC : window.parafiscalesConfig.AFC) !== undefined) ? Number(window.parafiscalesConfig.IBC ?? window.parafiscalesConfig.AFC) : 40.0;
+            const afcPct     = ibcPct;
             const saludPct   = (window.parafiscalesConfig && window.parafiscalesConfig.SALUD !== undefined) ? Number(window.parafiscalesConfig.SALUD) : 12.5;
             const pensionPct = (window.parafiscalesConfig && window.parafiscalesConfig.PENSION !== undefined) ? Number(window.parafiscalesConfig.PENSION) : 16.0;
             const arlPct     = (window.parafiscalesConfig && window.parafiscalesConfig.ARL !== undefined) ? Number(window.parafiscalesConfig.ARL) : 2.436;
 
             const aplicaSeguridadSocial = (hasParafiscales || isPensionado || hasArl);
+            const hasAportesSS = hasParafiscales;
 
             // Actualizar distintivo visual en la tarjeta de deducciones
             const badgeDot       = document.getElementById('liqParafiscalesDot');
@@ -6534,17 +6884,31 @@ usort($listaMedicos, function($a, $b) {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-indigo-500 animate-pulse';
                             badgeLbl.textContent = hasArl ? 'Médico Pensionado (Salud y ARL)' : 'Médico Pensionado (Solo Salud)';
                             badgeLbl.className = 'text-indigo-700 dark:text-indigo-300 font-extrabold';
-                            if (badgeRates) badgeRates.textContent = hasArl ? `IBC: ${ibcPct}% | Salud: ${saludPct}% | ARL: ${arlPct}% | Pensión: $0 (Exento)` : `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: $0 (Exento)`;
+                            if (badgeRates) {
+                                badgeRates.textContent = hasArl ? `Salud: ${saludPct}% | ARL: ${arlPct}% | Pensión: $0 (Exento)` : `Salud: ${saludPct}% | Pensión: $0 (Exento)`;
+                            }
+                        } else if ((hasAfc || hasIbc) && !hasParafiscales) {
+                            badgeDot.className = 'w-2 h-2 rounded-full bg-teal-500 animate-pulse';
+                            badgeLbl.textContent = hasArl ? 'AFC y ARL Activos' : 'AFC Activo para este Médico';
+                            badgeLbl.className = 'text-teal-700 dark:text-teal-300 font-extrabold';
+                            if (badgeRates) {
+                                badgeRates.textContent = hasArl ? `ARL: ${arlPct}% | Deducción Manual` : 'Deducción Manual';
+                            }
+                        } else if (hasParafiscales && (hasAfc || hasIbc)) {
+                            badgeDot.className = 'w-2 h-2 rounded-full bg-teal-500 animate-pulse';
+                            badgeLbl.textContent = hasArl ? 'Parafiscales, AFC y ARL Activos' : 'Parafiscales y AFC Activos';
+                            badgeLbl.className = 'text-teal-700 dark:text-teal-300 font-extrabold';
+                            if (badgeRates) badgeRates.textContent = hasArl ? `Salud: ${saludPct}% | Pensión: ${pensionPct}% | ARL: ${arlPct}% | AFC: Manual` : `Salud: ${saludPct}% | Pensión: ${pensionPct}% | AFC: Manual`;
                         } else if (hasParafiscales) {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-teal-500 animate-pulse';
                             badgeLbl.textContent = hasArl ? 'Parafiscales Activos (Salud, Pensión y ARL)' : 'Parafiscales Activos para este Médico';
                             badgeLbl.className = 'text-teal-700 dark:text-teal-300 font-extrabold';
-                            if (badgeRates) badgeRates.textContent = hasArl ? `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: ${pensionPct}% | ARL: ${arlPct}%` : `IBC: ${ibcPct}% | Salud: ${saludPct}% | Pensión: ${pensionPct}%`;
+                            if (badgeRates) badgeRates.textContent = hasArl ? `Salud: ${saludPct}% | Pensión: ${pensionPct}% | ARL: ${arlPct}%` : `Salud: ${saludPct}% | Pensión: ${pensionPct}%`;
                         } else if (hasArl) {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
                             badgeLbl.textContent = 'Aportes ARL Activos para este Médico';
                             badgeLbl.className = 'text-amber-700 dark:text-amber-300 font-extrabold';
-                            if (badgeRates) badgeRates.textContent = `IBC: ${ibcPct}% | ARL: ${arlPct}%`;
+                            if (badgeRates) badgeRates.textContent = `ARL: ${arlPct}%`;
                         } else {
                             badgeDot.className = 'w-2 h-2 rounded-full bg-slate-400';
                             badgeLbl.textContent = 'Parafiscales Desactivados ($0)';
@@ -6569,6 +6933,7 @@ usort($listaMedicos, function($a, $b) {
 
             // Visibilidad de Deducciones según el perfil del Médico o si es Consolidado Global
             const rowIbc         = document.getElementById('row_ded_ibc');
+            const rowAfc         = document.getElementById('row_ded_afc');
             const rowSalud       = document.getElementById('row_ded_salud');
             const rowArl         = document.getElementById('row_ded_arl');
             const rowPension     = document.getElementById('row_ded_pension');
@@ -6585,9 +6950,10 @@ usort($listaMedicos, function($a, $b) {
                 if (noDeducBox) noDeducBox.classList.add('hidden');
                 if (formBody) formBody.classList.remove('hidden');
 
-                // Liquidación Global: Se ocultan parafiscales, aportes y rete 383
+                // Liquidación Global: Se ocultan parafiscales, aportes, afc y rete 383
                 // Únicamente se muestra: PORCENTAJE DE RETENCIÓN, RETENCIÓN y TOTAL DEDUCCIONES
                 if (rowIbc)         rowIbc.classList.add('hidden');
+                if (rowAfc)         rowAfc.classList.add('hidden');
                 if (rowSalud)       rowSalud.classList.add('hidden');
                 if (rowArl)         rowArl.classList.add('hidden');
                 if (rowPension)     rowPension.classList.add('hidden');
@@ -6621,6 +6987,11 @@ usort($listaMedicos, function($a, $b) {
                 if (formBody) formBody.classList.add('hidden');
                 if (noDeducBox) noDeducBox.classList.remove('hidden');
 
+                if (rowIbc)         rowIbc.classList.add('hidden');
+                if (rowAfc)         rowAfc.classList.add('hidden');
+                if (rowSalud)       rowSalud.classList.add('hidden');
+                if (rowArl)         rowArl.classList.add('hidden');
+                if (rowPension)     rowPension.classList.add('hidden');
                 if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
                 document.getElementById('ded_afc').value = '0';
                 if (document.getElementById('ded_solidaridad_pct')) document.getElementById('ded_solidaridad_pct').value = 0;
@@ -6642,12 +7013,26 @@ usort($listaMedicos, function($a, $b) {
                 if (noDeducBox) noDeducBox.classList.add('hidden');
                 if (formBody) formBody.classList.remove('hidden');
 
-                if (rowIbc)   rowIbc.classList.remove('hidden');
+                // Si tiene AFC activo se muestra la fila editable AFC MES; la fila base informativa IBC permanece oculta para no duplicar
+                if (hasAfc) {
+                    if (rowAfc) rowAfc.classList.remove('hidden');
+                    if (rowIbc) rowIbc.classList.add('hidden');
+                } else if (hasParafiscales || isPensionado || hasArl) {
+                    if (rowAfc) rowAfc.classList.add('hidden');
+                    if (rowIbc) rowIbc.classList.remove('hidden');
+                } else {
+                    if (rowAfc) rowAfc.classList.add('hidden');
+                    if (rowIbc) rowIbc.classList.add('hidden');
+                }
+
+                // Salud (Si tiene parafiscales o es pensionado)
                 if (hasParafiscales || isPensionado) {
                     if (rowSalud) rowSalud.classList.remove('hidden');
                 } else {
                     if (rowSalud) rowSalud.classList.add('hidden');
                 }
+
+                // ARL
                 if (hasArl) {
                     if (rowArl)   rowArl.classList.remove('hidden');
                 } else {
@@ -6665,11 +7050,14 @@ usort($listaMedicos, function($a, $b) {
                     if (rowPension) rowPension.classList.add('hidden');
                 }
 
-                // Fondo de Solidaridad (Visible únicamente si el médico tiene Parafiscales activos)
-                if (hasParafiscales) {
+                // Fondo de Solidaridad (Visible únicamente si el médico tiene Parafiscales activos y no es pensionado)
+                if (hasParafiscales && !isPensionado) {
                     if (rowSolidaridad) rowSolidaridad.classList.remove('hidden');
                 } else {
                     if (rowSolidaridad) rowSolidaridad.classList.add('hidden');
+                    const elSolPctOff = document.getElementById('ded_solidaridad_pct');
+                    if (elSolPctOff) elSolPctOff.value = 0;
+                    document.getElementById('ded_solidaridad').value = '0';
                 }
 
                 // Retenciones: Se muestran según si tiene Retención Art 383 o Retención estándar, SIN importar si es pensionado
@@ -7007,7 +7395,8 @@ usort($listaMedicos, function($a, $b) {
                 return;
             }
 
-            const ibcPct     = (window.parafiscalesConfig && window.parafiscalesConfig.IBC !== undefined) ? Number(window.parafiscalesConfig.IBC) : 40.0;
+            const ibcPct     = (window.parafiscalesConfig && (window.parafiscalesConfig.IBC !== undefined ? window.parafiscalesConfig.IBC : window.parafiscalesConfig.AFC) !== undefined) ? Number(window.parafiscalesConfig.IBC ?? window.parafiscalesConfig.AFC) : 40.0;
+            const afcPct     = ibcPct;
             const saludPct   = (window.parafiscalesConfig && window.parafiscalesConfig.SALUD !== undefined) ? Number(window.parafiscalesConfig.SALUD) : 12.5;
             const pensionPct = (window.parafiscalesConfig && window.parafiscalesConfig.PENSION !== undefined) ? Number(window.parafiscalesConfig.PENSION) : 16.0;
             const arlPct     = (window.parafiscalesConfig && window.parafiscalesConfig.ARL !== undefined) ? Number(window.parafiscalesConfig.ARL) : 2.436;
@@ -7016,6 +7405,7 @@ usort($listaMedicos, function($a, $b) {
 
             let ibc = parseFloat(document.getElementById('ded_ibc').value) || 0;
             const aplicaSeguridadSocial = (window.currentMedicoHasParafiscales || window.currentMedicoIsPensionado || window.currentMedicoHasArl);
+            const hasAportesSS = window.currentMedicoHasParafiscales;
             
             if (autoCalcularSeguridadSocial && totalFactura > 0) {
                 if (aplicaSeguridadSocial) {
@@ -7029,9 +7419,9 @@ usort($listaMedicos, function($a, $b) {
             if (dispIbc) dispIbc.textContent = `$ ${ibc.toLocaleString('es-CO')}`;
 
             // Fondo de Solidaridad: Solo aplica si el médico tiene Parafiscales activos y se calcula sobre el IBC
-            const solidaridadPct = (window.currentMedicoHasParafiscales && document.getElementById('ded_solidaridad_pct')) ? (parseFloat(document.getElementById('ded_solidaridad_pct').value) || 0) : 0;
+            const solidaridadPct = (hasAportesSS && document.getElementById('ded_solidaridad_pct')) ? (parseFloat(document.getElementById('ded_solidaridad_pct').value) || 0) : 0;
             let solidaridad = 0;
-            if (window.currentMedicoHasParafiscales && solidaridadPct > 0 && ibc > 0) {
+            if (hasAportesSS && solidaridadPct > 0 && ibc > 0) {
                 solidaridad = Math.round(ibc * (solidaridadPct / 100));
             }
             document.getElementById('ded_solidaridad').value = solidaridad;
@@ -7044,8 +7434,8 @@ usort($listaMedicos, function($a, $b) {
 
             if (autoCalcularSeguridadSocial) {
                 if (aplicaSeguridadSocial && ibc > 0) {
-                    salud   = (window.currentMedicoHasParafiscales || window.currentMedicoIsPensionado) ? Math.round(ibc * (saludPct / 100)) : 0;
-                    pension = (window.currentMedicoHasParafiscales && !window.currentMedicoIsPensionado) ? Math.round(ibc * (pensionPct / 100)) : 0;
+                    salud   = (hasAportesSS || window.currentMedicoIsPensionado) ? Math.round(ibc * (saludPct / 100)) : 0;
+                    pension = (hasAportesSS && !window.currentMedicoIsPensionado) ? Math.round(ibc * (pensionPct / 100)) : 0;
                     arl     = window.currentMedicoHasArl ? Math.round(ibc * (arlPct / 100)) : 0;
                 } else {
                     salud   = 0;
@@ -7066,20 +7456,25 @@ usort($listaMedicos, function($a, $b) {
             const dispArl = document.getElementById('ded_arl_display');
             if (dispArl) dispArl.textContent = `- $ ${arl.toLocaleString('es-CO')}`;
 
-            // Actualizar etiqueta de tasas si aplica seguridad social
+            // Actualizar etiqueta de tasas si aplica seguridad social o AFC
             const badgeRates = document.getElementById('liqParafiscalesRatesText');
-            if (badgeRates && aplicaSeguridadSocial) {
-                let ratesText = `IBC: ${ibcPct}% | Salud: ${saludPct}%`;
-                if (!window.currentMedicoIsPensionado) {
-                    ratesText += ` | Pensión: ${pensionPct}%`;
+            if (badgeRates) {
+                if (aplicaSeguridadSocial && window.currentMedicoHasAfc) {
+                    let ratesText = `Salud: ${saludPct}%`;
+                    if (!window.currentMedicoIsPensionado) ratesText += ` | Pensión: ${pensionPct}%`;
+                    if (solidaridadPct > 0 && hasAportesSS) ratesText += ` | F. Sol.: ${solidaridadPct}%`;
+                    if (window.currentMedicoHasArl) ratesText += ` | ARL: ${arlPct}%`;
+                    ratesText += ` | AFC: Manual`;
+                    badgeRates.textContent = ratesText;
+                } else if (aplicaSeguridadSocial) {
+                    let ratesText = `Salud: ${saludPct}%`;
+                    if (!window.currentMedicoIsPensionado) ratesText += ` | Pensión: ${pensionPct}%`;
+                    if (solidaridadPct > 0 && hasAportesSS) ratesText += ` | F. Sol.: ${solidaridadPct}%`;
+                    if (window.currentMedicoHasArl) ratesText += ` | ARL: ${arlPct}%`;
+                    badgeRates.textContent = ratesText;
+                } else if (window.currentMedicoHasAfc) {
+                    badgeRates.textContent = window.currentMedicoHasArl ? `ARL: ${arlPct}% | Deducción Manual` : 'Deducción Manual';
                 }
-                if (solidaridadPct > 0 && window.currentMedicoHasParafiscales) {
-                    ratesText += ` | F. Sol.: ${solidaridadPct}%`;
-                }
-                if (window.currentMedicoHasArl) {
-                    ratesText += ` | ARL: ${arlPct}%`;
-                }
-                badgeRates.textContent = ratesText;
             }
 
             let rete383   = 0;
@@ -7205,6 +7600,12 @@ usort($listaMedicos, function($a, $b) {
                             <span class="font-medium">Novedades Entidad (${window.novedadesLiquidacionAplicadas.length}):</span>
                             <span class="font-mono font-bold">${totalNovNeto >= 0 ? '+ ' : '- '}$ ${Math.abs(totalNovNeto).toLocaleString('es-CO')} (Incluidas en Factura)</span>
                         </div>` : ''}
+                        ${afc > 0 ? `
+                        <div class="flex justify-between items-center text-xs text-rose-400">
+                            <span class="font-medium">Aporte AFC:</span>
+                            <span class="font-mono font-bold">- $ ${afc.toLocaleString('es-CO')}</span>
+                        </div>
+                        ` : ''}
                         ${solidaridad > 0 ? `
                         <div class="flex justify-between items-center text-xs text-rose-400">
                             <span class="font-medium">Fondo Solidaridad (${solidaridadPct}%):</span>
@@ -7379,8 +7780,8 @@ usort($listaMedicos, function($a, $b) {
                 periodo_hasta: fHasta,
                 medico_cedula: medicoCedula,
                 medico_nombre: medicoNombre,
-                entidad_id: typeof entActivaId !== 'undefined' ? entActivaId : 'PROPIO',
-                entidad_nombre: typeof entActivaNombre !== 'undefined' ? entActivaNombre : 'HERNÁN OCAZIONEZ Y CÍA S.A.S.',
+                entidad_id: window.currentEntidadIdLiq || (typeof entActivaId !== 'undefined' ? entActivaId : 'PROPIO'),
+                entidad_nombre: window.currentEntidadNombreLiq || (typeof entActivaNombre !== 'undefined' ? entActivaNombre : 'HERNÁN OCAZIONEZ Y CÍA S.A.S.'),
                 total_factura: totalFactura,
                 ded_afc: afc,
                 ded_solidaridad_pct: solidaridadPct,

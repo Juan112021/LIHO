@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     $codigo      = strtoupper(trim($_POST['codigo'] ?? ''));
     $nombre      = trim($_POST['nombre'] ?? '');
-    $aplicaSobre = trim($_POST['aplica_sobre'] ?? 'Valor IBC');
+    $aplicaSobre = trim($_POST['aplica_sobre'] ?? 'Valor AFC');
     $descripcion = trim($_POST['descripcion'] ?? '');
     $porcentaje  = (float)($_POST['porcentaje'] ?? 0.00);
 
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     $id          = (int)($_POST['id'] ?? 0);
     $nombre      = trim($_POST['nombre'] ?? '');
-    $aplicaSobre = trim($_POST['aplica_sobre'] ?? 'Valor IBC');
+    $aplicaSobre = trim($_POST['aplica_sobre'] ?? 'Valor AFC');
     $descripcion = trim($_POST['descripcion'] ?? '');
     $porcentaje  = (float)($_POST['porcentaje'] ?? 0.00);
     $estado      = isset($_POST['estado']) ? (int)$_POST['estado'] : 1;
@@ -273,6 +273,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
 $parafiscalesList = [];
 $totalActivas     = 0;
 $totalInactivas   = 0;
+$afcPctVal        = 40.0;
 $ibcPctVal        = 40.0;
 $saludPctVal      = 12.5;
 $pensionPctVal    = 16.0;
@@ -296,7 +297,8 @@ if (isset($con) && $con !== false) {
             }
 
             $cCode = strtoupper(trim($row['codigo'] ?? ''));
-            if ($cCode === 'IBC') {
+            if ($cCode === 'AFC' || $cCode === 'IBC') {
+                $afcPctVal = $row['porcentaje'];
                 $ibcPctVal = $row['porcentaje'];
             } elseif ($cCode === 'SALUD') {
                 $saludPctVal = $row['porcentaje'];
@@ -373,7 +375,7 @@ if (isset($con) && $con !== false) {
                     Maestro de Parafiscales
                 </h1>
                 <p class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-1">
-                    Configuración centralizada de tasas en vivo para IBC, Salud, ARL y deducciones de liquidación
+                    Configuración centralizada de tasas en vivo para AFC, Salud, ARL y deducciones de liquidación
                 </p>
             </div>
 
@@ -436,11 +438,11 @@ if (isset($con) && $con !== false) {
                 </div>
             </div>
 
-            <!-- Tasa IBC -->
+            <!-- Tasa AFC -->
             <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
                 <div>
-                    <p class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">% IBC Base</p>
-                    <h3 class="text-2xl font-black text-teal-600 dark:text-teal-400 font-outfit mt-1"><?php echo number_format($ibcPctVal, 2); ?>%</h3>
+                    <p class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">% AFC Base</p>
+                    <h3 class="text-2xl font-black text-teal-600 dark:text-teal-400 font-outfit mt-1"><?php echo number_format($afcPctVal, 2); ?>%</h3>
                     <p class="text-[11px] text-slate-400 mt-0.5">Sobre total facturado</p>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center">
@@ -453,7 +455,7 @@ if (isset($con) && $con !== false) {
                 <div>
                     <p class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">% Aporte Salud</p>
                     <h3 class="text-2xl font-black text-rose-600 dark:text-rose-400 font-outfit mt-1"><?php echo number_format($saludPctVal, 2); ?>%</h3>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Calculado sobre el IBC</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Calculado sobre base AFC</p>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                     <span class="material-symbols-outlined text-2xl">health_and_safety</span>
@@ -465,7 +467,7 @@ if (isset($con) && $con !== false) {
                 <div>
                     <p class="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">% Aporte Pensión</p>
                     <h3 class="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-outfit mt-1"><?php echo number_format($pensionPctVal, 2); ?>%</h3>
-                    <p class="text-[11px] text-slate-400 mt-0.5">Calculado sobre el IBC</p>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Calculado sobre base AFC</p>
                 </div>
                 <div class="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                     <span class="material-symbols-outlined text-2xl">assured_workload</span>
@@ -512,7 +514,7 @@ if (isset($con) && $con !== false) {
                                 <?php 
                                     $isActivo = ($p['estado'] === 1);
                                     $cCode = strtoupper(trim($p['codigo']));
-                                    $codColor = ($cCode === 'IBC') ? 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950/80 dark:text-teal-300 dark:border-teal-800' :
+                                    $codColor = ($cCode === 'AFC' || $cCode === 'IBC') ? 'bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-950/80 dark:text-teal-300 dark:border-teal-800' :
                                                (($cCode === 'SALUD') ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/80 dark:text-rose-300 dark:border-rose-800' :
                                                (($cCode === 'PENSION') ? 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950/80 dark:text-indigo-300 dark:border-indigo-800' :
                                                'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/80 dark:text-amber-300 dark:border-amber-800'));
@@ -634,7 +636,8 @@ if (isset($con) && $con !== false) {
                     <div>
                         <label class="block text-[11px] font-bold text-primary dark:text-slate-300 uppercase tracking-wider mb-1">Aplica Sobre *</label>
                         <select id="add_aplica_sobre" name="aplica_sobre" required class="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-primary dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-teal-500/30 outline-none">
-                            <option value="Valor IBC" selected>Valor IBC</option>
+                            <option value="Valor AFC" selected>Valor AFC</option>
+                            <option value="Valor IBC">Valor IBC</option>
                             <option value="Total Facturado">Total Facturado</option>
                         </select>
                     </div>
@@ -702,6 +705,7 @@ if (isset($con) && $con !== false) {
                     <div>
                         <label class="block text-[11px] font-bold text-primary dark:text-slate-300 uppercase tracking-wider mb-1">Aplica Sobre *</label>
                         <select id="edit_aplica_sobre" name="aplica_sobre" required class="w-full bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-primary dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-amber-500/30 outline-none">
+                            <option value="Valor AFC">Valor AFC</option>
                             <option value="Valor IBC">Valor IBC</option>
                             <option value="Total Facturado">Total Facturado</option>
                         </select>
@@ -757,7 +761,7 @@ if (isset($con) && $con !== false) {
         document.getElementById('edit_id').value = data.id || '';
         document.getElementById('edit_codigo').value = data.codigo || '';
         document.getElementById('edit_nombre').value = data.nombre || '';
-        document.getElementById('edit_aplica_sobre').value = data.aplica_sobre || 'Valor IBC';
+        document.getElementById('edit_aplica_sobre').value = data.aplica_sobre || 'Valor AFC';
         document.getElementById('edit_porcentaje').value = parseFloat(data.porcentaje) || 0;
         document.getElementById('edit_descripcion').value = data.descripcion || '';
         document.getElementById('edit_estado').value = (data.estado !== undefined) ? data.estado : 1;

@@ -11,6 +11,9 @@ class LiquidacionPDF extends FPDF {
     public $numeroLiquidacion = '';
     public $medicoNombre = '';
     public $periodo = '';
+    public $estado = 'APROBADA';
+    public $empresaNombre = 'HERNÁN OCAZIONEZ Y CÍA S.A.S.';
+    public $empresaNit = '890.908.414-9';
 
     function Header() {
         // Fondo decorativo de cabecera
@@ -28,7 +31,7 @@ class LiquidacionPDF extends FPDF {
         $this->SetXY(36, 5);
         $this->SetFont('Arial', 'B', 11);
         $this->SetTextColor(255, 255, 255);
-        $this->Cell(115, 6, utf8_decode('HERNÁN OCAZIONEZ Y CÍA S.A.S.'), 0, 1, 'L');
+        $this->Cell(115, 6, utf8_decode($this->empresaNombre ?: 'HERNÁN OCAZIONEZ Y CÍA S.A.S.'), 0, 1, 'L');
 
         $this->SetX(36);
         $this->SetFont('Arial', 'B', 8.5);
@@ -38,7 +41,8 @@ class LiquidacionPDF extends FPDF {
         $this->SetX(36);
         $this->SetFont('Arial', '', 7);
         $this->SetTextColor(148, 163, 184); // slate-400
-        $this->Cell(115, 4, utf8_decode('NIT: 890.908.414-9 | CERTIFICACIÓN OFICIAL DE PAGO Y AUDITORÍA'), 0, 1, 'L');
+        $nitTxt = !empty($this->empresaNit) ? "NIT: {$this->empresaNit} | CERTIFICACIÓN OFICIAL DE PAGO Y AUDITORÍA" : "CERTIFICACIÓN OFICIAL DE PAGO Y AUDITORÍA";
+        $this->Cell(115, 4, utf8_decode($nitTxt), 0, 1, 'L');
 
         // Badge Liquidación N° en cabecera derecha
         $this->SetXY(155, 6);
@@ -50,7 +54,7 @@ class LiquidacionPDF extends FPDF {
         $this->SetXY(155, 13);
         $this->SetFont('Arial', 'B', 7);
         $this->SetTextColor(203, 213, 225);
-        $this->Cell(45, 4, utf8_decode('ESTADO: APROBADA'), 0, 1, 'C');
+        $this->Cell(45, 4, utf8_decode('ESTADO: ' . strtoupper($this->estado ?: 'APROBADA')), 0, 1, 'C');
 
         $this->SetY(30);
     }
@@ -83,6 +87,15 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     $pdf->numeroLiquidacion = $liq['id'];
     $pdf->medicoNombre = $liq['medico_nombre'];
     $pdf->periodo = $liq['periodo_desde'] . ' al ' . $liq['periodo_hasta'];
+    $pdf->estado = strtoupper($liq['estado'] ?? 'APROBADA');
+    if (!empty($liq['entidad_nombre'])) {
+        $pdf->empresaNombre = strtoupper($liq['entidad_nombre']);
+    }
+    if (!empty($liq['entidad_nit'])) {
+        $pdf->empresaNit = $liq['entidad_nit'];
+    } elseif (!empty($liq['medico_entidad_nit'])) {
+        $pdf->empresaNit = $liq['medico_entidad_nit'];
+    }
 
     $pdf->AddPage();
     $pdf->SetAutoPageBreak(true, 18);
@@ -367,7 +380,7 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
 
     $ibc = floatval($liq['ded_ibc'] ?? 0);
     if ($ibc > 0) {
-        $deducciones['IBC MES (ESTIMADO)'] = $ibc;
+        $deducciones['AFC MES (ESTIMADO)'] = $ibc;
     }
 
     $salud = floatval($liq['ded_salud'] ?? 0);
@@ -539,7 +552,27 @@ function generarPDFLiquidacion($liquidacionIdOrData) {
     $pdf->SetX(14);
     $pdf->SetFont('Courier', 'B', 7.5);
     $pdf->SetTextColor(15, 23, 42);
-    $hash = $liq['hash_integridad'] ?: 'GENERADO_AL_APROBAR';
+    $hash = trim($liq['hash_integridad'] ?? '');
+    if (empty($hash) || $hash === 'GENERADO_AL_APROBAR') {
+        if (function_exists('obtenerOCalcularHashLiquidacion')) {
+            $hash = obtenerOCalcularHashLiquidacion($liq);
+        } else {
+            $payloadRaw = json_encode(array(
+                'id'                       => $liq['id'] ?? 0,
+                'periodo_desde'            => $liq['periodo_desde'] ?? '',
+                'periodo_hasta'            => $liq['periodo_hasta'] ?? '',
+                'medico_cedula'            => $liq['medico_cedula'] ?? '',
+                'medico_nombre'            => $liq['medico_nombre'] ?? '',
+                'total_factura'            => floatval($liq['total_factura'] ?? 0),
+                'total_deducciones'        => floatval($liq['total_deducciones'] ?? 0),
+                'total_a_pagar'            => floatval($liq['total_a_pagar'] ?? 0),
+                'usuario_creador_nombre'   => $liq['usuario_creador_nombre'] ?? '',
+                'usuario_aprobador_nombre' => $liq['usuario_aprobador_nombre'] ?? '',
+                'detalles_json'            => $liq['detalles_json'] ?? ''
+            ), JSON_UNESCAPED_UNICODE);
+            $hash = hash('sha256', $payloadRaw);
+        }
+    }
     $pdf->Cell(180, 4, utf8_decode($hash), 0, 1, 'L');
 
     $pdf->SetX(14);

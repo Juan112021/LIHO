@@ -1721,13 +1721,13 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                         <span class="font-mono font-extrabold text-[9px] text-indigo-600 dark:text-indigo-400">Pensión: $0 (Exento)</span>
                     </div>
                 `;
-            } else if (dedSalud > 0 || dedPension > 0 || dedArl > 0) {
+            } else if (dedSalud > 0 || dedPension > 0 || dedArl > 0 || dedIbc > 0) {
                 const solBadge = (dedSolidaridad > 0) ? ` | F. Sol.: ${floatval(liqOrig.ded_solidaridad_pct || 0)}%` : '';
                 statusBadgeText = `
                     <div class="px-4 py-2 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[10px]">
                         <span class="font-bold flex items-center gap-1.5 text-teal-700 dark:text-teal-300">
                             <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                            <span>Parafiscales Activos</span>
+                            <span>Parafiscales / AFC Activos</span>
                         </span>
                         <span class="font-mono font-extrabold text-[9px] text-teal-600 dark:text-teal-400">Seguridad Social Aplicada${solBadge}</span>
                     </div>
@@ -1772,7 +1772,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
                 rowsHtml += `
                     <div class="pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
                         <div class="flex items-center justify-between gap-2">
-                            <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">IBC MES (ESTIMADO)</label>
+                            <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">AFC MES (ESTIMADO)</label>
                             <span class="font-mono font-black text-xs text-slate-900 dark:text-white">$ ${nuevoIbc.toLocaleString('es-CO')}</span>
                         </div>
                         <div class="flex items-center justify-between gap-2 text-rose-600 dark:text-rose-400">
@@ -2699,7 +2699,7 @@ $preselectedLiqId = intval($_GET['crear_para_liq'] ?? 0);
 
                 deduccionesRowsHtml += `
                     <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                        <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">IBC MES (ESTIMADO)</label>
+                        <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">AFC MES (ESTIMADO)</label>
                         <span class="font-mono font-black text-xs text-slate-900 dark:text-white">$ ${dedIbc.toLocaleString('es-CO')}</span>
                     </div>
                     <div class="flex items-center justify-between gap-2 text-rose-600 dark:text-rose-400">

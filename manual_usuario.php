@@ -466,6 +466,13 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                                     En el modal de detalle (<em>Ver Detalle</em>) y en los informes por sede, se presenta un desglose claro e individualizado de los conceptos liquidados. Los incentivos de productividad por tomografías contrastadas (regla de 50 estudios contrastados × $150.000 COP) se muestran con insignias destacadas, banner corporativo e información detallada de la sede donde se causó.
                                 </div>
                             </div>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60">
+                                <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">6</span>
+                                <div>
+                                    <strong class="text-xs text-blue-900 dark:text-blue-200">Reenvío Institucional, Huella SHA-256 y Auditoría:</strong>
+                                    Permite reenviar el expediente de una liquidación aprobada o emitida en cualquier momento a través del botón <em>Reenviar</em> en la tabla o en el modal financiero. El sistema resuelve automáticamente al Médico Titular, a la Dirección Médica y a quien creó la liquidación, adjuntando en tiempo real el Reporte PDF oficial con firma digital SHA-256 persistente y el archivo Excel con el detalle de exámenes. Cada reenvío requiere confirmación previa con previsualización de destinatarios y queda registrado con auditoría dual obligatoria en <code>sistema_auditoria_logs</code> y <code>dbo.logs_sistema</code>.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -616,7 +623,19 @@ $userRole = strtoupper($_SESSION['user_role'] ?? 'SIN ROL');
                         <!-- Resumen Dinámico de Cambios -->
                         <div class="space-y-3 pt-2 text-xs text-slate-600 dark:text-slate-300">
                             <div class="p-4 rounded-2xl bg-teal-50/60 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/60 space-y-2">
-                                <span class="font-extrabold text-teal-900 dark:text-teal-200 block text-xs">Versión 1.1.6 (2026-09-23):</span>
+                                <span class="font-extrabold text-teal-900 dark:text-teal-200 block text-xs">Versión 1.1.7 (2026-09-26):</span>
+                                <ul class="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                                    <li><strong>Reenvío Institucional de Liquidaciones:</strong> Botón interactivo de reenvío en cada fila de la tabla y en el modal financiero, con resolución automatizada de destinatarios (Médico, Dirección Médica y Creador) y confirmación previa con previsualización en SweetAlert2.</li>
+                                    <li><strong>Generación y Adjunto de Expedientes en Tiempo Real:</strong> Emisión automática y despacho simultáneo del Reporte PDF corporativo y de la Consulta Detallada de Exámenes en Excel (CSV UTF-8 BOM).</li>
+                                    <li><strong>Firma Digital Criptográfica (SHA-256) Persistente:</strong> Huella inmutable de 64 caracteres almacenada en base de datos para todas las liquidaciones y expuesta en el PDF oficial y notificaciones de correo.</li>
+                                    <li><strong>Seguridad de Envíos y Aislamiento de Desarrollo:</strong> Bloqueo estricto y permanente de <code>desarrollo@hernanocazionez.com</code>, enrutamiento a buzón de pruebas <code>juane6462@gmail.com</code> en modo desarrollo, y exclusión garantizada de cuentas de desarrollador en producción.</li>
+                                    <li><strong>Auditoría Dual y Trazabilidad Obligatoria:</strong> Registro de cada evento de reenvío en <code>sistema_auditoria_logs</code> y <code>dbo.logs_sistema</code> con insignia temporal en la línea de tiempo.</li>
+                                    <li><strong>Depuración Estética de Notificaciones:</strong> Retiro de menciones redundantes de estado, retiro de cédula en encabezado, eliminación de tabla redundante de sedes y recuadro técnico de trazabilidad en el correo.</li>
+                                </ul>
+                            </div>
+
+                            <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-2">
+                                <span class="font-extrabold text-slate-900 dark:text-slate-200 block text-xs">Versión 1.1.6 (2026-09-23):</span>
                                 <ul class="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300">
                                     <li><strong>Afectación de Novedades sobre Total Factura:</strong> Las notas de ajuste y novedades ahora impactan directamente la base del Total Factura / Valor General, permitiendo que todas las deducciones de ley (aportes a salud, pensión y retenciones en la fuente) se calculen proporcionalmente sobre el nuevo valor consolidado ajustado.</li>
                                     <li><strong>Copia Automática a Mary Luz Ríos:</strong> Integración en el servicio de despacho de correos para que todas las liquidaciones y comprobantes enviados a los médicos cuenten con copia obligatoria de auditoría institucional.</li>

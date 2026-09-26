@@ -5,6 +5,55 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/
 
 ---
 
+## [1.1.7] - 2026-09-26
+
+### Reenvío Institucional de Liquidaciones por Correo Electrónico
+- **Botón de Reenvío Interactivo**: Incorporación de botón de reenvío de expedientes de liquidación en cada registro de la tabla de liquidaciones y dentro del modal de detalle financiero corporativo.
+- **Resolución Automática de Destinatarios**: Detección dinámica y despacho coordinado a tres frentes institucionales:
+  - Médico Titular (o buzón de pruebas en desarrollo).
+  - Dirección Médica y Coordinación Asistencial (`coordinacionsistemas@hernanocazionez.com.co`, `dirasistencial@hernanocazionez.com`).
+  - Usuario que creó la liquidación (ej. Contabilidad / Mary Luz Ríos).
+- **Ventana de Confirmación Previa con Resumen de Envíos**: Modal interactivo (SweetAlert2) que despliega la lista clara de correos receptores antes de autorizar el despacho.
+- **Generación y Anexado Automático de Expedientes**: Emisión en tiempo real y adjunto simultáneo del **Reporte Oficial en PDF** y la **Consulta Detallada de Exámenes en Excel** (formato CSV con codificación UTF-8 BOM).
+
+### Seguridad de Envíos y Aislamiento en Entornos de Desarrollo / Testeo
+- **Bloqueo Total de Cuenta de Desarrollo**: Exclusión estricta y permanente de `desarrollo@hernanocazionez.com` en todos los despachos de correo del sistema.
+- **Enrutamiento Seguro en Modo Pruebas**: Mientras la opción de desarrollo/pruebas esté habilitada (`estanCorreosMedicosBloqueados()`), el correo del médico especialista se redirige al buzón de pruebas `juane6462@gmail.com` manteniendo las copias del equipo institucional de pruebas.
+- **Modo Producción Transparente**: Al desactivarse las opciones de pruebas, las notificaciones se despachan a los especialistas y áreas institucionales correspondientes, garantizando que ninguna cuenta de desarrollo (`desarrollo@hernanocazionez.com` ni `juane6462@gmail.com`) reciba correos operativos.
+- **Filtro Universal de Defensa en Profundidad**: Mecanismo de validación incorporado directamente en el motor central de transporte SMTP (`enviarCorreoSMTP`).
+
+### Firma Digital Criptográfica (SHA-256) Persistente
+- **Huella de Integridad en Base de Datos**: Generación y almacenamiento persistente del hash criptográfico SHA-256 (64 caracteres hexadecimales) calculado sobre los datos inmutables de cada liquidación en la tabla `liquidaciones_turnos`.
+- **Sustitución Definitiva de Textos Preliminares**: Reemplazo de leyendas temporales (`GENERADO_AL_APROBAR`) por la huella digital criptográfica real tanto en los reportes PDF corporativos como en las notificaciones por correo.
+- **Estado Dinámico en Comprobantes PDF**: Renderizado visual del estado auténtico de la liquidación en la cabecera del documento (`ESTADO: [ESTADO_REAL]`).
+
+### Auditoría Dual y Trazabilidad Obligatoria
+- **Registro de Reenvío en Logs**: Trazabilidad simultánea en la bitácora universal `sistema_auditoria_logs` y en la tabla corporativa `dbo.logs_sistema` bajo la acción `REENVIO_CORREO_LIQUIDACION`, registrando usuario emisor, rol, IP, destinatarios y hash criptográfico.
+- **Distintivo en Línea de Tiempo**: Visualización inmediata del evento con insignia corporativa `REENVÍO DE CORREO` en el historial de auditoría de la liquidación.
+
+### Depuración Estética de Notificaciones por Correo
+- **Limpieza de Cabecera y Saludo**: Retiro de indicaciones redundantes de estado y eliminación del identificador de cédula entre paréntesis `(CC: ...)` en el encabezado del profesional.
+- **Supresión de Tablas Redundantes**: Retiro de la tabla interna de sedes/estructuras dentro del cuerpo HTML del correo, transfiriendo la consulta analítica completa a los archivos oficiales adjuntos (PDF y Excel).
+- **Eliminación de Recuadro de Trazabilidad Interna**: Retiro de bloques técnicos en el correo para preservar un diseño limpio y corporativo.
+
+### Optimizaciones en Conciliación y Liquidación
+- **Claridad Numérica en Deducciones**: Estandarización visual de deducciones y retenciones, mostrando valores numéricos explícitos (`$ 0`) en lugar de campos de texto vacíos o barras distractoras.
+- **Mejoras de Rendimiento**: Optimización en consultas masivas de conciliación y visualización de exámenes médicos.
+
+### Componentes y Módulos Actualizados
+- Módulo de Aprobación de Liquidaciones (`aprobacion_liquidaciones.php`)
+- Motor Central de Liquidaciones y Auditoría (`includes/liquidaciones_helper.php`)
+- Generador de Reportes PDF Corporativos (`includes/pdf_liquidaciones.php`)
+- Motor de Despacho y Transporte SMTP (`includes/smtp_mailer.php`)
+- Módulo de Conciliación de Exámenes Médicos (`examenes_medicos.php`)
+- Módulo de Asignación y Procedimientos (`gestion_medicos_procedimientos.php`)
+- Módulos de Parafiscales y Exclusiones
+- Control Centralizado de Versiones (`config/version.php`)
+- Manual de Usuario Corporativo (`manual_usuario.php`)
+- Documentación del Repositorio (`README.md`)
+
+---
+
 ## [1.1.6] - 2026-09-23
 
 ### Novedades Financieras y Deducciones sobre Total Factura

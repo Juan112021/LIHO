@@ -181,6 +181,42 @@ if ($action === 'cambiar_estado') {
     exit;
 }
 
+if ($action === 'obtener_destinatarios_reenvio') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $id = intval($_GET['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(array('success' => false, 'error' => 'ID de liquidación inválido.'));
+        exit;
+    }
+    $destinatarios = obtenerDestinatariosReenvioLiquidacion($id);
+    echo json_encode(array('success' => true, 'data' => $destinatarios));
+    exit;
+}
+
+if ($action === 'reenviar_correo') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    $rawInput = file_get_contents('php://input');
+    $inputData = json_decode($rawInput, true) ?: $_POST;
+
+    $id = intval($inputData['id'] ?? 0);
+    $correosExtra = $inputData['correos_extra'] ?? array();
+    if (!is_array($correosExtra)) {
+        $correosExtra = array();
+    }
+
+    if ($id <= 0) {
+        echo json_encode(array('success' => false, 'error' => 'ID de liquidación inválido.'));
+        exit;
+    }
+
+    $res = reenviarLiquidacionPorCorreo($id, $userId, $userName, $userRole, $correosExtra);
+    echo json_encode($res);
+    exit;
+}
+
+
 // Generador de Meses para filtro
 $nombresMeses = array(
     1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
@@ -687,6 +723,10 @@ for ($i = 0; $i < 18; $i++) {
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <button type="button" onclick="confirmarReenvioCorreoModal()" class="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5 border border-sky-400/20" title="Reenviar liquidación por correo a Dirección Médica, Médico y Creador">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                        <span>Reenviar Correo</span>
+                    </button>
                     <button type="button" onclick="imprimirLiquidacionDetalle()" class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer">
                         <span class="material-symbols-outlined text-base">print</span>
                         <span>Imprimir / PDF</span>
@@ -1100,6 +1140,31 @@ for ($i = 0; $i < 18; $i++) {
                     subUserText = `<div class="text-[10px] text-slate-400 font-medium mt-1">Por revisar</div>`;
                 }
 
+                const isGlobalMed = (item.medico_cedula === 'GLOBAL' || (item.medico_nombre && (item.medico_nombre.toUpperCase().includes('GLOBAL') || item.medico_nombre.toUpperCase().includes('TODOS'))));
+                let medicoCellHtml = '';
+                if (isGlobalMed) {
+                    const entNom = item.entidad_nombre || 'Hernán Ocazionez y Cía S.A.S.';
+                    medicoCellHtml = `
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                                <i class="fa-solid fa-hospital text-xs"></i>
+                            </span>
+                            <div>
+                                <div class="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-tight">${htmlspecialchars(entNom)}</div>
+                                <div class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 mt-0.5">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span>Liquidación Global de Entidad</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    medicoCellHtml = `
+                        <div class="font-bold text-slate-900 dark:text-white">${htmlspecialchars(item.medico_nombre)}</div>
+                        <div class="text-[10px] text-slate-400 font-mono">CC/ID: ${htmlspecialchars(item.medico_cedula)}</div>
+                    `;
+                }
+
                 tr.innerHTML = `
                     <td class="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">#${item.id}</td>
                     <td class="py-3 px-4">
@@ -1110,8 +1175,7 @@ for ($i = 0; $i < 18; $i++) {
                     </td>
                     <td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">${item.periodo_desde} AL ${item.periodo_hasta}</td>
                     <td class="py-3 px-4">
-                        <div class="font-bold text-slate-900 dark:text-white">${htmlspecialchars(item.medico_nombre)}</div>
-                        <div class="text-[10px] text-slate-400 font-mono">CC/ID: ${htmlspecialchars(item.medico_cedula)}</div>
+                        ${medicoCellHtml}
                     </td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">$ ${(parseFloat(item.total_factura) || 0).toLocaleString('es-CO')}</td>
                     <td class="py-3 px-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400">- $ ${(parseFloat(item.total_deducciones) || 0).toLocaleString('es-CO')}</td>
@@ -1129,10 +1193,16 @@ for ($i = 0; $i < 18; $i++) {
                         ${subUserText}
                     </td>
                     <td class="py-3 px-4 text-center">
-                        <button type="button" onclick="verDetalleLiquidacion(${item.id}, this)" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer">
-                            <i class="fa-solid fa-eye text-tertiary"></i>
-                            <span>Ver Detalle</span>
-                        </button>
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button type="button" onclick="verDetalleLiquidacion(${item.id}, this)" class="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer shadow-xs border border-transparent hover:border-slate-300 dark:hover:border-slate-600" title="Ver Detalle y Auditoría">
+                                <i class="fa-solid fa-eye text-tertiary"></i>
+                                <span>Ver Detalle</span>
+                            </button>
+                            <button type="button" onclick="confirmarReenvioCorreo(${item.id}, event)" class="px-2.5 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs inline-flex items-center gap-1 transition-all cursor-pointer shadow-xs hover:scale-105" title="Reenviar liquidación al correo a Dirección Médica, Médico y Creador">
+                                <i class="fa-solid fa-paper-plane text-sky-600 dark:text-sky-400"></i>
+                                <span>Reenviar</span>
+                            </button>
+                        </div>
                     </td>
                 `;
 
@@ -1182,7 +1252,7 @@ for ($i = 0; $i < 18; $i++) {
 
             let rows = [];
             rows.push(['LIQUIDACIÓN DE TURNOS / HONORARIOS MÉDICOS - LIHO']);
-            rows.push(['EMPRESA:', 'HERNAN OCAZIONEZ Y CIA S.A.S']);
+            rows.push(['EMPRESA:', item.entidad_nombre || 'HERNÁN OCAZIONEZ Y CÍA S.A.S.']);
             rows.push(['LIQUIDACIÓN N°:', item.id]);
             rows.push(['ESTADO:', item.estado]);
             rows.push(['PROFESIONAL / MÉDICO:', item.medico_nombre]);
@@ -1287,7 +1357,7 @@ for ($i = 0; $i < 18; $i++) {
             }
             rows.push(['--- INFORMACIÓN CONTABLE Y DEDUCCIONES ---']);
             rows.push(['TOTAL FACTURA:', item.total_factura]);
-            rows.push(['IBC MES (ESTIMADO):', item.ded_ibc || 0]);
+            rows.push(['AFC MES (ESTIMADO):', item.ded_ibc || 0]);
             rows.push(['MENOS APORTE SALUD:', item.ded_salud || 0]);
             rows.push(['MENOS APORTE ARL:', item.ded_arl || 0]);
             rows.push(['MENOS APORTE PENSIÓN:', item.ded_pension || 0]);
@@ -1442,6 +1512,12 @@ for ($i = 0; $i < 18; $i++) {
                                 const cNombre = esBoni ? 'BONIFICACIÓN TOMOGRAFÍAS' : cKey;
                                 const cCant = parseInt(cVal.cantidad || cVal.cant || 0);
                                 const cValPagar = parseFloat(cVal.total || cVal.valor || 0);
+                                const noCruzCant = parseInt(cVal.no_cruzado_cant || 0);
+                                const noCruzVal = parseFloat(cVal.no_cruzado_valor || 0);
+                                const cruzCant = cVal.cruzado_cant !== undefined ? parseInt(cVal.cruzado_cant) : (noCruzCant ? Math.max(0, cCant - noCruzCant) : cCant);
+                                const cruzVal = cVal.cruzado_valor !== undefined ? parseFloat(cVal.cruzado_valor) : (noCruzVal ? Math.max(0, cValPagar - noCruzVal) : cValPagar);
+                                const cTipos = Array.isArray(cVal.cruce_tipos) ? new Set(cVal.cruce_tipos) : new Set();
+                                if (noCruzCant > 0 && cTipos.size === 0) cTipos.add('No Cruzado');
 
                                 if (esBoni) {
                                     totalBonosTomografia += cCant;
@@ -1453,11 +1529,11 @@ for ($i = 0; $i < 18; $i++) {
                                     nombre: cNombre,
                                     cant: cCant,
                                     valor: cValPagar,
-                                    cruzadoCant: cCant,
-                                    cruzadoValor: cValPagar,
-                                    noCruzadoCant: 0,
-                                    noCruzadoValor: 0,
-                                    cruceTipos: new Set(),
+                                    cruzadoCant: cruzCant,
+                                    cruzadoValor: cruzVal,
+                                    noCruzadoCant: noCruzCant,
+                                    noCruzadoValor: noCruzVal,
+                                    cruceTipos: cTipos,
                                     esBonificacion: esBoni
                                 };
                             }
@@ -1542,6 +1618,22 @@ for ($i = 0; $i < 18; $i++) {
                         }
 
                         totalFacturaSum += totalSedeVal;
+
+                        // Fallback de seguridad: si no hay conceptos pero la sede tiene valor o cantidad
+                        if (Object.keys(conceptosMap).length === 0 && (totalSedeVal > 0 || totalSedeCant > 0)) {
+                            const cNomFallback = 'ESTUDIOS REALIZADOS';
+                            conceptosMap[cNomFallback] = {
+                                nombre: cNomFallback,
+                                cant: totalSedeCant,
+                                valor: totalSedeVal,
+                                cruzadoCant: Math.max(0, totalSedeCant - sNoCruzadoCount),
+                                cruzadoValor: Math.max(0, totalSedeVal - sNoCruzadoValor),
+                                noCruzadoCant: sNoCruzadoCount,
+                                noCruzadoValor: sNoCruzadoValor,
+                                cruceTipos: sNoCruzadoCount > 0 ? new Set(['No Cruzado']) : new Set(),
+                                esBonificacion: false
+                            };
+                        }
 
                         // Warning Badge Header
                         let warningBadgeHeader = '';
@@ -1753,12 +1845,12 @@ for ($i = 0; $i < 18; $i++) {
                             <span class="font-mono font-extrabold text-[9px] text-indigo-600 dark:text-indigo-400">Pensión: $0 (Exento)</span>
                         </div>
                     `;
-                } else if (dedSalud > 0 || dedPension > 0 || dedArl > 0) {
+                } else if (dedSalud > 0 || dedPension > 0 || dedArl > 0 || dedIbc > 0) {
                     statusBadgeText = `
                         <div class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200/70 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px]">
                             <span class="font-bold flex items-center gap-1.5 text-teal-700 dark:text-teal-300">
                                 <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                                <span>Parafiscales Activos</span>
+                                <span>Parafiscales / AFC Activos</span>
                             </span>
                             <span class="font-mono font-extrabold text-[9px] text-teal-600 dark:text-teal-400">Seguridad Social Aplicada</span>
                         </div>
@@ -1797,7 +1889,7 @@ for ($i = 0; $i < 18; $i++) {
                 if (dedSalud > 0 || dedArl > 0 || dedIbc > 0) {
                     deduccionesRowsHtml += `
                         <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                            <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">IBC MES (ESTIMADO)</label>
+                            <label class="text-[11px] font-bold text-slate-700 dark:text-slate-200">AFC MES (ESTIMADO)</label>
                             <span class="font-mono font-black text-xs text-slate-900 dark:text-white">$ ${dedIbc.toLocaleString('es-CO')}</span>
                         </div>
                         <div class="flex items-center justify-between gap-2 text-rose-600 dark:text-rose-400">
@@ -1877,6 +1969,8 @@ for ($i = 0; $i < 18; $i++) {
                             stBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 dark:bg-rose-950/90 dark:text-rose-300 border border-rose-200 dark:border-rose-700/80 inline-flex items-center gap-1.5"><i class="fa-solid fa-ban"></i> ${l.accion}</span>`;
                         } else if (l.accion === 'CREACIÓN') {
                             stBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 dark:bg-sky-950/90 dark:text-sky-300 border border-sky-200 dark:border-sky-700/80 inline-flex items-center gap-1.5"><i class="fa-solid fa-plus-circle"></i> CREACIÓN</span>`;
+                        } else if (l.accion === 'REENVIO_CORREO_LIQUIDACION' || l.accion.includes('REENVIO')) {
+                            stBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 dark:bg-sky-950/90 dark:text-sky-300 border border-sky-300 dark:border-sky-700/80 inline-flex items-center gap-1.5"><i class="fa-solid fa-paper-plane"></i> REENVÍO DE CORREO</span>`;
                         } else if (l.modulo === 'CORREO' || l.accion.includes('CORREO') || l.accion.includes('NOTIFICACION')) {
                             stBadge = `<span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-100 text-indigo-800 dark:bg-indigo-950/90 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/80 inline-flex items-center gap-1.5"><i class="fa-solid fa-envelope"></i> NOTIFICACIÓN CORREO</span>`;
                         }
@@ -1932,7 +2026,7 @@ for ($i = 0; $i < 18; $i++) {
                                         ${htmlspecialchars(motivo)}
                                     </span>
                                 </td>
-                                <td class="py-2 px-3 text-slate-600 dark:text-slate-300 italic text-[11px] max-w-xs truncate" title="${htmlspecialchars(detalle)}">
+                                <td class="py-2 px-3 text-slate-600 dark:text-slate-300 italic text-[11px] min-w-[220px] max-w-md break-words whitespace-normal leading-relaxed" title="${htmlspecialchars(detalle)}">
                                     "${htmlspecialchars(detalle)}"
                                 </td>
                                 <td class="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
@@ -2196,7 +2290,10 @@ for ($i = 0; $i < 18; $i++) {
                                         </div>
                                         <div>
                                             <div class="font-bold text-xs text-slate-900 dark:text-white font-outfit uppercase">${htmlspecialchars(m.nombre)}</div>
-                                            <div class="text-[10px] font-mono text-slate-400">CC / ID: ${htmlspecialchars(m.cedula || 'N/A')}</div>
+                                            <div class="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 flex-wrap">
+                                                <span>CC / ID: ${htmlspecialchars(m.cedula || 'N/A')}</span>
+                                                ${m.entidad_nombre ? `<span class="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800" title="Entidad vinculada"><i class="fa-solid fa-hospital text-[8px] mr-1"></i>${htmlspecialchars(m.entidad_nombre)}</span>` : ''}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -2313,7 +2410,7 @@ for ($i = 0; $i < 18; $i++) {
                                 ${badgeEstadoCard}
                             </div>
                             <div class="text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row sm:gap-6 font-medium">
-                                <p><strong class="text-slate-700 dark:text-slate-300">EMPRESA:</strong> HERNAN OCAZIONEZ Y CIA S.A.S</p>
+                                <p><strong class="text-slate-700 dark:text-slate-300">EMPRESA:</strong> <span class="font-bold text-slate-800 dark:text-slate-200 uppercase">${htmlspecialchars(item.entidad_nombre || 'HERNÁN OCAZIONEZ Y CÍA S.A.S.')}</span></p>
                                 <p><strong class="text-slate-700 dark:text-slate-300">PERIODO:</strong> <span class="font-mono font-bold text-teal-600 dark:text-teal-400">${item.periodo_desde} AL ${item.periodo_hasta}</span></p>
                             </div>
                         </div>
@@ -2479,6 +2576,10 @@ for ($i = 0; $i < 18; $i++) {
                             ${footerBadge}
                         </div>
                         <div class="flex items-center gap-2">
+                            <button type="button" onclick="confirmarReenvioCorreo(${item.id})" class="px-3.5 py-2.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs" title="Reenviar expediente y comprobante por correo">
+                                <i class="fa-solid fa-paper-plane text-sky-600 dark:text-sky-400"></i>
+                                <span>Reenviar Correo</span>
+                            </button>
                             <a href="notas_ajuste.php?crear_para_liq=${item.id}" class="px-4 py-2.5 rounded-xl bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border border-teal-500/20" title="Crear Nota de Ajuste a esta liquidación">
                                 <span class="material-symbols-outlined text-base">note_add</span>
                                 <span>Crear Nota de Ajuste</span>
@@ -2881,6 +2982,242 @@ for ($i = 0; $i < 18; $i++) {
                 SwalCustom.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al procesar el cambio de estado.' });
             } finally {
                 isProcessingStateChange = false;
+            }
+        }
+
+        function confirmarReenvioCorreoModal() {
+            const item = window.currentLiquidationData;
+            const liqId = item?.id || window.currentLiquidationId;
+            if (!liqId) {
+                SwalCustom.fire({ icon: 'warning', title: 'Sin Selección', text: 'No hay ninguna liquidación activa para reenviar.' });
+                return;
+            }
+            confirmarReenvioCorreo(liqId);
+        }
+
+        let isResendingEmail = false;
+        async function confirmarReenvioCorreo(id, ev = null) {
+            if (ev) {
+                ev.stopPropagation();
+                ev.preventDefault();
+            }
+            if (isResendingEmail) return;
+
+            // 1. Mostrar loader preliminar mientras consultamos los destinatarios
+            SwalCustom.fire({
+                title: 'Preparando Reenvío...',
+                html: `
+                    <div class="py-3 flex flex-col items-center justify-center space-y-2">
+                        <div class="w-10 h-10 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs text-slate-500">Consultando destinatarios oficiales de la liquidación #${id}...</p>
+                    </div>
+                `,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            });
+
+            try {
+                const respDest = await fetch(`aprobacion_liquidaciones.php?action=obtener_destinatarios_reenvio&id=${id}`);
+                const dataDest = await respDest.json();
+
+                if (!dataDest.success) {
+                    SwalCustom.fire({
+                        icon: 'error',
+                        title: 'Error al consultar destinatarios',
+                        text: dataDest.error || 'No se pudo obtener la información de los destinatarios.'
+                    });
+                    return;
+                }
+
+                const d = dataDest.data;
+                const med = d.medico || {};
+                const dir = d.dir_medica || {};
+                const cre = d.creador || {};
+
+                // Construcción de la vista previa de destinatarios
+                const confirmHtml = `
+                    <div class="text-left space-y-3 my-2">
+                        <div class="p-3 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs">
+                            <div class="flex items-center justify-between pb-2 border-b border-sky-200 dark:border-sky-800/80 mb-2">
+                                <span class="font-bold text-sky-900 dark:text-sky-200 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-invoice-dollar text-sky-600"></i>
+                                    <span>Liquidación #${id}</span>
+                                </span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 uppercase font-mono">
+                                    ${htmlspecialchars(d.estado || 'APROBADA')}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+                                <div><strong class="text-slate-700 dark:text-slate-200">Período:</strong> ${htmlspecialchars(d.periodo || '')}</div>
+                                <div><strong class="text-slate-700 dark:text-slate-200">Total a Liquidar:</strong> <span class="font-mono font-bold text-emerald-600 dark:text-emerald-400">$ ${(parseFloat(d.total_a_pagar) || 0).toLocaleString('es-CO')} COP</span></div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <span class="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                                <i class="fa-solid fa-users text-sky-500 mr-1"></i> Destinatarios que recibirán el reenvío:
+                            </span>
+
+                            <!-- 1. Dirección Médica -->
+                            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                                <div class="w-7 h-7 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                                    <i class="fa-solid fa-user-doctor text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200">Dirección Médica y Coordinación</span>
+                                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">Copia Oficial</span>
+                                    </div>
+                                    <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                                        coordinacionsistemas@hernanocazionez.com.co, dirasistencial@hernanocazionez.com
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. Médico Titular -->
+                            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                                <div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                                    <i class="fa-solid fa-stethoscope text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">${htmlspecialchars(med.nombre || 'Profesional Médico')}</span>
+                                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded ${d.modo_pruebas ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'} shrink-0">${d.modo_pruebas ? 'Prueba Redirigida' : 'Médico Titular'}</span>
+                                    </div>
+                                    <div class="text-[11px] font-mono text-slate-600 dark:text-slate-300 truncate font-semibold">
+                                        ${htmlspecialchars(med.email || 'juane6462@gmail.com')}
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 flex items-center gap-2">
+                                        <span>CC/ID: ${htmlspecialchars(med.cedula || 'N/A')}</span>
+                                        ${d.modo_pruebas ? '<span class="text-amber-600 dark:text-amber-400 font-bold">• Modo Desarrollo / Pruebas Activo</span>' : ''}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Quien Creó la Liquidación -->
+                            <div class="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-start gap-2.5">
+                                <div class="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0 mt-0.5">
+                                    <i class="fa-solid fa-user-pen text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">${htmlspecialchars(cre.nombre || 'Usuario Creador')}</span>
+                                        <span class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 shrink-0">Creador</span>
+                                    </div>
+                                    <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                                        ${htmlspecialchars(cre.email || 'contabilidad2@hernanocazionez.com')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Adjuntos automáticos -->
+                        <div class="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/60 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+                            <div class="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold">
+                                <i class="fa-solid fa-paperclip text-slate-500"></i>
+                                <span>Archivos oficiales adjuntos en el reenvío:</span>
+                            </div>
+                            <div class="flex items-center gap-2 pl-4 text-[10.5px]">
+                                <span class="text-rose-600 dark:text-rose-400 font-bold"><i class="fa-solid fa-file-pdf mr-1"></i>Reporte Oficial PDF</span>
+                                <span>•</span>
+                                <span class="text-emerald-600 dark:text-emerald-400 font-bold"><i class="fa-solid fa-file-excel mr-1"></i>Desglose Sede Excel</span>
+                            </div>
+                        </div>
+
+                        <!-- Aviso obligatorio de Logs y Auditoría -->
+                        <div class="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-[10.5px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                            <i class="fa-solid fa-shield-halved text-amber-600 text-sm mt-0.5 shrink-0"></i>
+                            <div>
+                                <strong>Trazabilidad y Bitácora de Auditoría (Logs):</strong>
+                                <p class="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5">
+                                    Este reenvío quedará registrado formal e inmutablemente en la base de datos de auditoría (<code>sistema_auditoria_logs</code> y <code>logs_sistema</code>) con estampilla de tiempo, emisor y detalle de entrega.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const confirmResult = await SwalCustom.fire({
+                    title: '¿Reenviar Liquidación por Correo?',
+                    html: confirmHtml,
+                    showCancelButton: true,
+                    confirmButtonText: '<i class="fa-solid fa-paper-plane mr-1.5"></i> Sí, Reenviar Ahora',
+                    cancelButtonText: '<i class="fa-solid fa-xmark mr-1.5"></i> Cancelar',
+                    focusConfirm: false
+                });
+
+                if (!confirmResult.isConfirmed) return;
+
+                // Ejecución del reenvío
+                isResendingEmail = true;
+                SwalCustom.fire({
+                    title: 'Enviando Correos...',
+                    html: `
+                        <div class="py-4 space-y-3 text-center">
+                            <div class="w-12 h-12 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                            <p class="text-xs text-slate-600 dark:text-slate-300 font-medium">Generando PDF oficial, Excel detallado y enviando por SMTP...</p>
+                            <p class="text-[10.5px] text-slate-400">Registrando traza inmutable en bitácora de auditoría...</p>
+                        </div>
+                    `,
+                    showConfirmButton: false,
+                    allowOutsideClick: false
+                });
+
+                const respSend = await fetch('aprobacion_liquidaciones.php?action=reenviar_correo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+
+                const resSend = await respSend.json();
+
+                if (resSend.success) {
+                    const destCount = (resSend.todos_destinatarios || []).length;
+                    const destListStr = (resSend.todos_destinatarios || []).map(e => `• ${htmlspecialchars(e)}`).join('<br>');
+
+                    SwalCustom.fire({
+                        icon: 'success',
+                        title: '¡Liquidación Reenviada con Éxito!',
+                        html: `
+                            <div class="text-left space-y-2.5 my-2">
+                                <div class="p-3 rounded-2xl bg-teal-950/40 border border-teal-800/80 text-teal-200 text-xs">
+                                    La liquidación <strong>#${id}</strong> ha sido remitida formalmente por correo electrónico.
+                                </div>
+                                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]">
+                                    <strong class="text-slate-700 dark:text-slate-200 block mb-1">Destinatarios que recibieron el correo (${destCount}):</strong>
+                                    <div class="font-mono text-[10.5px] text-slate-600 dark:text-slate-300">
+                                        ${destListStr}
+                                    </div>
+                                </div>
+                                <div class="text-[10px] text-slate-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-clock-rotate-left text-teal-500"></i>
+                                    <span>Acción guardada en logs_sistema y reflejada en la bitácora de auditoría.</span>
+                                </div>
+                            </div>
+                        `,
+                        confirmButtonText: '<i class="fa-solid fa-check mr-1.5"></i> Entendido'
+                    });
+
+                    // Si el modal de detalle de esta misma liquidación está abierto, recargar su vista para ver el nuevo log de inmediato
+                    if (window.currentLiquidationId == id && !document.getElementById('modalDetalleLiq').classList.contains('hidden')) {
+                        verDetalleLiquidacion(id);
+                    }
+                } else {
+                    SwalCustom.fire({
+                        icon: 'error',
+                        title: 'Error al Reenviar',
+                        text: resSend.error || resSend.mensaje || 'No fue posible completar el envío por correo.'
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+                SwalCustom.fire({
+                    icon: 'error',
+                    title: 'Error Inesperado',
+                    text: 'Ocurrió un error al procesar la solicitud de reenvío de correo.'
+                });
+            } finally {
+                isResendingEmail = false;
             }
         }
 

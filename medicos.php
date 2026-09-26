@@ -90,7 +90,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                     $modalidadesAdicionalesStr = implode(',', $modalidadesArr);
 
                     $parafiscales      = isset($_POST['parafiscales']) ? 1 : 0;
-                    $ibc               = isset($_POST['ibc']) ? 1 : 0;
+                    $afc               = (isset($_POST['afc']) || isset($_POST['ibc'])) ? 1 : 0;
+                    $ibc               = $afc;
                     $pensionado        = isset($_POST['pensionado']) ? 1 : 0;
                     $retenciones       = isset($_POST['retenciones']) ? 1 : 0;
                     $retencionArt383   = isset($_POST['retencion_art_383']) ? 1 : 0;
@@ -102,9 +103,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                     $entidadId = (!empty($_POST['entidad_id']) && intval($_POST['entidad_id']) > 0) ? intval($_POST['entidad_id']) : null;
 
                     // Insertar en usuarios
-                    $sqlInsU = "INSERT INTO usuarios (email, clave, rol_id, estado, fecha_creacion, ultima_sesion, fecha_nacimiento, nombre_completo, cedula, tarifas_especiales, degluciones, parafiscales, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) 
-                                VALUES (?, ?, ?, '1', ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    $stmtInsU = sqlsrv_query($con, $sqlInsU, array($email, $claveDummy, $rolId, $fechaActual, $fechaNac, $nombreCompleto, $cedula, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
+                    $sqlInsU = "INSERT INTO usuarios (email, clave, rol_id, estado, fecha_creacion, ultima_sesion, fecha_nacimiento, nombre_completo, cedula, tarifas_especiales, degluciones, parafiscales, afc, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) 
+                                VALUES (?, ?, ?, '1', ?, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    $stmtInsU = sqlsrv_query($con, $sqlInsU, array($email, $claveDummy, $rolId, $fechaActual, $fechaNac, $nombreCompleto, $cedula, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
 
                     if ($stmtInsU !== false) {
                         $stmtMax = sqlsrv_query($con, "SELECT MAX(id) AS new_id FROM usuarios WHERE LOWER(email) = LOWER(?)", array($email));
@@ -128,16 +129,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
                                 }
 
                                 if ($isIdentityM == 1) {
-                                    $sqlInsM = "INSERT INTO medicos (usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                                    @sqlsrv_query($con, $sqlInsM, array($newUserId, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
+                                    $sqlInsM = "INSERT INTO medicos (usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, afc, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                    @sqlsrv_query($con, $sqlInsM, array($newUserId, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
                                 } else {
                                     $sqlMaxM = "SELECT ISNULL(MAX(id), 0) + 1 AS next_id FROM medicos";
                                     $stmtMaxM = sqlsrv_query($con, $sqlMaxM);
                                     $rowMaxM = sqlsrv_fetch_array($stmtMaxM, SQLSRV_FETCH_ASSOC);
                                     $medicoId = $rowMaxM['next_id'];
 
-                                    $sqlInsM = "INSERT INTO medicos (id, usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                                    @sqlsrv_query($con, $sqlInsM, array($medicoId, $newUserId, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
+                                    $sqlInsM = "INSERT INTO medicos (id, usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, afc, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                                    @sqlsrv_query($con, $sqlInsM, array($medicoId, $newUserId, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
                                 }
                             }
 
@@ -240,7 +241,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
             $modalidadesAdicionalesStr = implode(',', $modalidadesArr);
 
             $parafiscales      = isset($_POST['parafiscales']) ? 1 : 0;
-            $ibc               = isset($_POST['ibc']) ? 1 : 0;
+            $afc               = (isset($_POST['afc']) || isset($_POST['ibc'])) ? 1 : 0;
+            $ibc               = $afc;
             $pensionado        = isset($_POST['pensionado']) ? 1 : 0;
             $retenciones       = isset($_POST['retenciones']) ? 1 : 0;
             $retencionArt383   = isset($_POST['retencion_art_383']) ? 1 : 0;
@@ -251,21 +253,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
             $entidadId = (!empty($_POST['entidad_id']) && intval($_POST['entidad_id']) > 0) ? intval($_POST['entidad_id']) : null;
 
-            $sqlUpdU = "UPDATE usuarios SET email = ?, rol_id = ?, fecha_nacimiento = ?, nombre_completo = ?, cedula = ?, tarifas_especiales = ?, degluciones = ?, parafiscales = ?, ibc = ?, pensionado = ?, retenciones = ?, retencion_art_383 = ?, arl = ?, modalidades_adicionales = ?, entidad_id = ? WHERE id = ?";
-            $stmtUpdU = sqlsrv_query($con, $sqlUpdU, array($email, $rolId, $fechaNac, $nombreCompleto, $cedula, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId, $userIdToEdit));
+            $sqlUpdU = "UPDATE usuarios SET email = ?, rol_id = ?, fecha_nacimiento = ?, nombre_completo = ?, cedula = ?, tarifas_especiales = ?, degluciones = ?, parafiscales = ?, afc = ?, ibc = ?, pensionado = ?, retenciones = ?, retencion_art_383 = ?, arl = ?, modalidades_adicionales = ?, entidad_id = ? WHERE id = ?";
+            $stmtUpdU = sqlsrv_query($con, $sqlUpdU, array($email, $rolId, $fechaNac, $nombreCompleto, $cedula, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId, $userIdToEdit));
 
             if ($stmtUpdU !== false) {
                 $sqlCheckM = "SELECT id FROM medicos WHERE usuario_id = ?";
                 $stmtCheckM = sqlsrv_query($con, $sqlCheckM, array($userIdToEdit));
 
                 if ($stmtCheckM !== false && sqlsrv_has_rows($stmtCheckM)) {
-                    $sqlUpdM = "UPDATE medicos SET cedula = ?, usuario_proteo = ?, pnom = ?, snom = ?, pape = ?, sape = ?, fecha_nacimiento = ?, tarifas_especiales = ?, degluciones = ?, parafiscales = ?, ibc = ?, pensionado = ?, retenciones = ?, retencion_art_383 = ?, arl = ?, modalidades_adicionales = ?, entidad_id = ? WHERE usuario_id = ?";
-                    sqlsrv_query($con, $sqlUpdM, array($cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId, $userIdToEdit));
+                    $sqlUpdM = "UPDATE medicos SET cedula = ?, usuario_proteo = ?, pnom = ?, snom = ?, pape = ?, sape = ?, fecha_nacimiento = ?, tarifas_especiales = ?, degluciones = ?, parafiscales = ?, afc = ?, ibc = ?, pensionado = ?, retenciones = ?, retencion_art_383 = ?, arl = ?, modalidades_adicionales = ?, entidad_id = ? WHERE usuario_id = ?";
+                    sqlsrv_query($con, $sqlUpdM, array($cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId, $userIdToEdit));
                 } else {
                     if ($rolId == '3' || !empty($proteo)) {
                         if (empty($proteo)) $proteo = 'C' . $cedula;
-                        $sqlInsM = "INSERT INTO medicos (usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                        @sqlsrv_query($con, $sqlInsM, array($userIdToEdit, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
+                        $sqlInsM = "INSERT INTO medicos (usuario_id, cedula, usuario_proteo, pnom, snom, pape, sape, fecha_nacimiento, tarifas_especiales, degluciones, parafiscales, afc, ibc, pensionado, retenciones, retencion_art_383, arl, modalidades_adicionales, entidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        @sqlsrv_query($con, $sqlInsM, array($userIdToEdit, $cedula, $proteo, $pnom, $snom, $pape, $sape, $fechaNac, $tarifasEspeciales, $degluciones, $parafiscales, $afc, $ibc, $pensionado, $retenciones, $retencionArt383, $arl, $modalidadesAdicionalesStr, $entidadId));
                     }
                 }
 
@@ -324,7 +326,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
 
         echo json_encode(array('success' => false, 'error' => 'Error al actualizar el estado de ARL.'));
         exit;
-    } elseif ($action === 'toggle_ibc') {
+    } elseif ($action === 'toggle_afc' || $action === 'toggle_ibc') {
         header('Content-Type: application/json');
         if ($userRole !== 'ADMINISTRADOR') {
             echo json_encode(array('success' => false, 'error' => 'Acceso denegado.'));
@@ -332,16 +334,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && isset($_POST['action'])) {
         }
 
         $targetUserId = intval($_POST['user_id'] ?? 0);
-        $nuevoIbc     = (trim($_POST['ibc'] ?? '0') === '1' || $_POST['ibc'] === true || $_POST['ibc'] === 'true') ? 1 : 0;
+        $valAfc = isset($_POST['afc']) ? $_POST['afc'] : ($_POST['ibc'] ?? '0');
+        $nuevoAfc     = (trim((string)$valAfc) === '1' || $valAfc === true || $valAfc === 'true') ? 1 : 0;
 
         if ($targetUserId > 0 && isset($con) && $con !== false) {
-            sqlsrv_query($con, "UPDATE usuarios SET ibc = ? WHERE id = ?", array($nuevoIbc, $targetUserId));
-            sqlsrv_query($con, "UPDATE medicos SET ibc = ? WHERE usuario_id = ?", array($nuevoIbc, $targetUserId));
-            echo json_encode(array('success' => true, 'ibc' => $nuevoIbc));
+            sqlsrv_query($con, "UPDATE usuarios SET afc = ?, ibc = ? WHERE id = ?", array($nuevoAfc, $nuevoAfc, $targetUserId));
+            sqlsrv_query($con, "UPDATE medicos SET afc = ?, ibc = ? WHERE usuario_id = ?", array($nuevoAfc, $nuevoAfc, $targetUserId));
+            echo json_encode(array('success' => true, 'afc' => $nuevoAfc, 'ibc' => $nuevoAfc));
             exit;
         }
 
-        echo json_encode(array('success' => false, 'error' => 'Error al actualizar el estado de IBC.'));
+        echo json_encode(array('success' => false, 'error' => 'Error al actualizar el estado de AFC.'));
         exit;
     } elseif ($action === 'toggle_estado') {
         $targetUserId = intval($_POST['user_id'] ?? 0);
@@ -483,7 +486,8 @@ if (isset($con) && $con !== false) {
                          ISNULL(m.retenciones, ISNULL(u.retenciones, 0)) AS retenciones,
                          ISNULL(m.retencion_art_383, ISNULL(u.retencion_art_383, 0)) AS retencion_art_383,
                          ISNULL(m.arl, ISNULL(u.arl, 0)) AS arl,
-                         ISNULL(m.ibc, ISNULL(u.ibc, 0)) AS ibc,
+                         ISNULL(m.afc, ISNULL(u.afc, ISNULL(m.ibc, ISNULL(u.ibc, 0)))) AS afc,
+                          ISNULL(m.ibc, ISNULL(u.ibc, ISNULL(m.afc, ISNULL(u.afc, 0)))) AS ibc,
                          ISNULL(m.modalidades_adicionales, ISNULL(u.modalidades_adicionales, '')) AS modalidades_adicionales
                   FROM usuarios u
                   LEFT JOIN roles r ON u.rol_id = r.id
@@ -766,7 +770,8 @@ foreach ($medicosList as $m) {
                         $hasRetenciones = (intval($m['retenciones'] ?? 0) === 1);
                         $hasRetencion383 = (intval($m['retencion_art_383'] ?? 0) === 1);
                         $hasArl = (intval($m['arl'] ?? 0) === 1);
-                        $hasIbc = (intval($m['ibc'] ?? 0) === 1);
+                        $hasAfc = (intval($m['afc'] ?? ($m['ibc'] ?? 0)) === 1);
+                        $hasIbc = $hasAfc;
 
                         $docModsStr = trim($m['modalidades_adicionales'] ?? '');
                         $docMods = !empty($docModsStr) ? array_filter(array_map('trim', explode(',', $docModsStr))) : [];
@@ -809,7 +814,8 @@ foreach ($medicosList as $m) {
                             'retenciones' => intval($m['retenciones'] ?? 0),
                             'retencion_art_383' => intval($m['retencion_art_383'] ?? 0),
                             'arl' => intval($m['arl'] ?? 0),
-                            'ibc' => intval($m['ibc'] ?? 0),
+                            'afc' => intval($m['afc'] ?? ($m['ibc'] ?? 0)),
+                            'ibc' => intval($m['afc'] ?? ($m['ibc'] ?? 0)),
                             'entidad_id' => $m['entidad_id'] ?? null
                         ]), ENT_QUOTES, 'UTF-8');
 
@@ -968,9 +974,9 @@ foreach ($medicosList as $m) {
                                             <span class="w-1 h-1 rounded-full bg-emerald-500"></span> Parafiscales
                                         </span>
                                     <?php endif; ?>
-                                    <?php if ($hasIbc): ?>
+                                    <?php if ($hasAfc || $hasIbc): ?>
                                         <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[9px] font-bold">
-                                            <span class="w-1 h-1 rounded-full bg-teal-500"></span> IBC
+                                            <span class="w-1 h-1 rounded-full bg-teal-500"></span> AFC
                                         </span>
                                     <?php endif; ?>
                                     <?php if ($hasPensionado): ?>
@@ -1214,9 +1220,9 @@ foreach ($medicosList as $m) {
                                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Parafiscales
                                                     </span>
                                                 <?php endif; ?>
-                                                <?php if ($hasIbc): ?>
+                                                <?php if ($hasAfc || $hasIbc): ?>
                                                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-100/90 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[9px] font-extrabold uppercase tracking-wider">
-                                                        <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span> IBC
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span> AFC
                                                     </span>
                                                 <?php endif; ?>
                                                 <?php if ($hasPensionado): ?>
@@ -1551,16 +1557,16 @@ foreach ($medicosList as $m) {
                                 </label>
                             </div>
 
-                            <!-- IBC Switch -->
+                            <!-- AFC Switch -->
                             <div class="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-teal-200/70 dark:border-teal-800/70 shadow-2xs">
                                 <div class="pr-2">
-                                    <label for="add_ibc" class="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer block">
-                                        IBC
+                                    <label for="add_afc" class="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer block">
+                                        AFC
                                     </label>
-                                    <p class="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">Habilitar cálculo de Ingreso Base de Cotización (40%)</p>
+                                    <p class="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">Habilitar cálculo de Base AFC / Cotización (40%)</p>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                                    <input type="checkbox" id="add_ibc" name="ibc" value="1" 
+                                    <input type="checkbox" id="add_afc" name="afc" value="1" 
                                            class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-teal-600"></div>
                                 </label>
@@ -1895,16 +1901,16 @@ foreach ($medicosList as $m) {
                                 </label>
                             </div>
 
-                            <!-- IBC Switch -->
+                            <!-- AFC Switch -->
                             <div class="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-teal-200/70 dark:border-teal-800/70 shadow-2xs">
                                 <div class="pr-2">
-                                    <label for="edit_ibc" class="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer block">
-                                        IBC
+                                    <label for="edit_afc" class="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer block">
+                                        AFC
                                     </label>
-                                    <p class="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">Habilitar cálculo de Ingreso Base de Cotización (40%)</p>
+                                    <p class="text-[10px] text-slate-400 font-medium leading-tight mt-0.5">Habilitar cálculo de Base AFC / Cotización (40%)</p>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
-                                    <input type="checkbox" id="edit_ibc" name="ibc" value="1" 
+                                    <input type="checkbox" id="edit_afc" name="afc" value="1" 
                                            class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-teal-600"></div>
                                 </label>
@@ -2157,9 +2163,9 @@ foreach ($medicosList as $m) {
             checkParafiscales.checked = (data.parafiscales == 1 || data.parafiscales === '1' || data.parafiscales === true);
         }
 
-        const checkIbc = document.getElementById('edit_ibc');
-        if (checkIbc) {
-            checkIbc.checked = (data.ibc == 1 || data.ibc === '1' || data.ibc === true);
+        const checkAfc = document.getElementById('edit_afc') || document.getElementById('edit_ibc');
+        if (checkAfc) {
+            checkAfc.checked = (data.afc == 1 || data.afc === '1' || data.afc === true || data.ibc == 1 || data.ibc === '1' || data.ibc === true);
         }
 
         const checkPensionado = document.getElementById('edit_pensionado');
@@ -2382,6 +2388,7 @@ foreach ($medicosList as $m) {
             openBtn.addEventListener('click', () => {
                 document.querySelectorAll('.mod-switch-add').forEach(sw => sw.checked = false);
                 document.getElementById('add_parafiscales').checked = false;
+                if (document.getElementById('add_afc')) document.getElementById('add_afc').checked = false;
                 if (document.getElementById('add_ibc')) document.getElementById('add_ibc').checked = false;
                 document.getElementById('add_pensionado').checked = false;
                 document.getElementById('add_arl').checked = false;

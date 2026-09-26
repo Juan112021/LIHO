@@ -706,8 +706,8 @@ $fechaHastaDefault = date('Y-m-t');
                             ${htmlspecialchars(r.motivo_exclusion || 'Exclusión')}
                         </span>
                     </td>
-                    <td class="py-3 px-3.5 max-w-[220px]">
-                        <div class="text-slate-600 dark:text-slate-300 truncate italic text-[11px]" title="${htmlspecialchars(r.detalle_exclusion)}">
+                    <td class="py-3 px-3.5 min-w-[220px] max-w-md">
+                        <div class="text-slate-600 dark:text-slate-300 italic text-[11px] break-words whitespace-normal leading-relaxed" title="${htmlspecialchars(r.detalle_exclusion)}">
                             "${htmlspecialchars(r.detalle_exclusion || 'Sin detalle')}"
                         </div>
                     </td>

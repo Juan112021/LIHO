@@ -36,9 +36,27 @@ function enviarCorreoSMTP($to, $subject, $bodyHTML, $config = null, $embeddedIma
     $toAddresses = $limpiarCorreos($to);
     $ccAddresses = $limpiarCorreos($cc);
 
+    // Exclusión estricta de cuentas del desarrollador:
+    // NUNCA enviar a desarrollo@hernanocazionez.com bajo ninguna circunstancia.
+    // En modo producción (pruebas desactivadas), NUNCA enviar tampoco a juane6462@gmail.com.
+    require_once __DIR__ . '/config_helper.php';
+    $esModoPruebasActivo = function_exists('estanCorreosMedicosBloqueados') ? estanCorreosMedicosBloqueados() : false;
+
+    $correosProhibidos = array('desarrollo@hernanocazionez.com');
+    if (!$esModoPruebasActivo) {
+        $correosProhibidos[] = 'juane6462@gmail.com';
+    }
+
+    $toAddresses = array_values(array_filter($toAddresses, function($e) use ($correosProhibidos) {
+        return !in_array($e, $correosProhibidos);
+    }));
+    $ccAddresses = array_values(array_filter($ccAddresses, function($e) use ($correosProhibidos, $toAddresses) {
+        return !in_array($e, $correosProhibidos) && !in_array($e, $toAddresses);
+    }));
+
     // Destinatario principal por defecto si está vacío
     if (empty($toAddresses)) {
-        $toAddresses = array('coordinacionsistemas@hernanocazionez.com');
+        $toAddresses = array($esModoPruebasActivo ? 'juane6462@gmail.com' : 'coordinacionsistemas@hernanocazionez.com.co');
     }
 
     // Interceptor de Seguridad: Bloqueo de Correos a Médicos en Modo Desarrollo

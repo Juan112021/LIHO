@@ -148,17 +148,19 @@ if ($action === 'guardar_rol') {
             exit;
         }
 
-        $sqlInsert = "INSERT INTO roles (nombre, descripcion, color_tema, estado, fecha_creacion, fecha_modificacion) 
-                      VALUES (?, ?, ?, ?, GETDATE(), GETDATE()); SELECT SCOPE_IDENTITY() AS id;";
-        $stmtIns = sqlsrv_query($con, $sqlInsert, array($nombre, $descripcion, $colorTema, $estado));
+        // Obtener el siguiente ID para el rol (la columna 'id' no tiene IDENTITY)
+        $stmtMax = sqlsrv_query($con, "SELECT ISNULL(MAX(id), 0) + 1 AS next_id FROM roles");
+        $rowMax = ($stmtMax && ($rM = sqlsrv_fetch_array($stmtMax, SQLSRV_FETCH_ASSOC))) ? $rM : array('next_id' => 1);
+        $rolId = intval($rowMax['next_id'] ?? 1);
+
+        $sqlInsert = "INSERT INTO roles (id, nombre, descripcion, color_tema, estado, fecha_creacion, fecha_modificacion) 
+                      VALUES (?, ?, ?, ?, ?, GETDATE(), GETDATE())";
+        $stmtIns = sqlsrv_query($con, $sqlInsert, array($rolId, $nombre, $descripcion, $colorTema, $estado));
         if ($stmtIns === false) {
             $errors = print_r(sqlsrv_errors(), true);
             echo json_encode(array('success' => false, 'error' => 'Error al crear el rol: ' . $errors));
             exit;
         }
-        sqlsrv_next_result($stmtIns);
-        $rowNew = sqlsrv_fetch_array($stmtIns, SQLSRV_FETCH_ASSOC);
-        $rolId = intval($rowNew['id'] ?? 0);
     }
 
     // Guardar la matriz de permisos para el rol (asegura dashboard para todos)
